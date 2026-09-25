@@ -8,6 +8,7 @@ export interface Product {
   image: string;
   badge?: string;
   weight?: string;
+  isAvailable?: boolean;
 }
 
 export interface CartItem {
@@ -15,7 +16,12 @@ export interface CartItem {
   quantity: number;
 }
 
+export type OrderStatus = 'new' | 'cooking' | 'delivering' | 'completed' | 'cancelled';
+export type PaymentStatus = 'pending' | 'paid';
+
 export interface OrderData {
+  id?: string;
+  orderNumber?: string;
   items: {
     id: string;
     name: string;
@@ -28,6 +34,9 @@ export interface OrderData {
   address: string;
   comment?: string;
   paymentMethod: 'online' | 'cash';
+  status?: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  createdAt?: string;
 }
 
 declare global {
@@ -50,16 +59,6 @@ declare global {
           impactOccurred: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
           notificationOccurred: (type: 'error' | 'success' | 'warning') => void;
           selectionChanged: () => void;
-        };
-        MainButton?: {
-          text: string;
-          color: string;
-          textColor: string;
-          isVisible: boolean;
-          isActive: boolean;
-          show: () => void;
-          hide: () => void;
-          onClick: (cb: () => void) => void;
         };
       };
     };
