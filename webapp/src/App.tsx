@@ -186,10 +186,11 @@ export function App() {
     localStorage.setItem('tg_store_orders', JSON.stringify(orders));
   }, [orders]);
 
-  // Check admin: @qqeaux strictly
+  // Check admin: @qqeaux or @eccdk or ID 5847598677
   const isActualAdmin = useMemo(() => {
     const tgUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username?.toLowerCase() || '';
-    if (tgUsername === 'qqeaux') return true;
+    const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    if (tgUsername === 'qqeaux' || tgUsername === 'eccdk' || tgId === 5847598677) return true;
     if (secretTaps >= 5) return true;
     return false;
   }, [secretTaps]);
@@ -325,7 +326,24 @@ export function App() {
     setResendTimer(60);
     setIsVerifyingCode(true);
 
-    // Show simulated Telegram notification toast
+    // Send REAL message to user's Telegram chat via Bot API
+    const BOT_TOKEN = '8869708665:AAGbvrKDDw5nhQ-Bt9YKf7kL3NimYvZYjaM';
+    const targetChatId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 5847598677;
+    try {
+      fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: targetChatId,
+          text: `🔐 *Код подтверждения заказа:*\n\n👉 \`${code}\`\n\nНикому не сообщайте этот код! Введите его в приложении для завершения заказа.`,
+          parse_mode: 'Markdown'
+        })
+      }).catch(console.warn);
+    } catch (e) {
+      console.warn(e);
+    }
+
+    // Show top notification toast as well
     setShowNotificationToast(true);
     setTimeout(() => {
       codeInputRefs[0].current?.focus();
@@ -365,6 +383,23 @@ export function App() {
     setInputCode(['', '', '', '']);
     setCodeError('');
     setResendTimer(60);
+
+    const BOT_TOKEN = '8869708665:AAGbvrKDDw5nhQ-Bt9YKf7kL3NimYvZYjaM';
+    const targetChatId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 5847598677;
+    try {
+      fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: targetChatId,
+          text: `🔐 *Новый код подтверждения заказа:*\n\n👉 \`${newCode}\`\n\nВведите его в приложении.`,
+          parse_mode: 'Markdown'
+        })
+      }).catch(console.warn);
+    } catch (e) {
+      console.warn(e);
+    }
+
     setShowNotificationToast(true);
     codeInputRefs[0].current?.focus();
   };
