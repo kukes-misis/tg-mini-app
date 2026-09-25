@@ -31,6 +31,7 @@ export interface OrderData {
   totalPrice: number;
   customerName: string;
   phone: string;
+  email: string;
   address: string;
   comment?: string;
   paymentMethod: 'online' | 'cash';
@@ -55,6 +56,7 @@ declare global {
           };
         };
         sendData: (data: string) => void;
+        showAlert?: (message: string, callback?: () => void) => void;
         HapticFeedback?: {
           impactOccurred: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
           notificationOccurred: (type: 'error' | 'success' | 'warning') => void;

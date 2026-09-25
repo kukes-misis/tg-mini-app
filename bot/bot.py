@@ -52,17 +52,23 @@ async def handle_start(message: types.Message):
     user_id = user.id if user else None
     user_name = user.first_name if user else "друг"
 
+    # If this is @qqeaux, permanently store their chat_id for instant order alerts
+    if is_admin(username, user_id) and user_id:
+        db.set_setting("admin_chat_id", str(user_id))
+        db.set_setting("admin_username", str(username or "qqeaux"))
+        logging.info(f"Registered admin chat_id: {user_id} for user @{username}")
+
     welcome_text = (
         f"👋 *Здравствуйте, {user_name}!* \n\n"
         "Добро пожаловать в демонстрационный интернет-магазин нового поколения на базе *Telegram Mini App*.\n\n"
         "✨ *Преимущества формата:*\n"
         "• Мгновенно открывается внутри Telegram\n"
-        "• Не нужно ничего скачивать из App Store / Google Play\n"
+        "• Встроенная проверка данных и подтверждение кодом\n"
         "• Плавный адаптивный интерфейс с корзиной и выбором доставки\n"
         "• Онлайн-оплата картами и через СБП (ЮKassa)\n\n"
     )
     if is_admin(username, user_id):
-        welcome_text += "👑 *Вы авторизованы как Администратор (@qqeaux)*. Вам доступна кнопка управления магазином.\n\n"
+        welcome_text += "👑 *Вы авторизованы как Администратор (@qqeaux)*. Оповещения о новых заказах подключены.\n\n"
 
     welcome_text += "👇 *Нажмите кнопку ниже, чтобы открыть приложение:* "
     await message.answer(
@@ -77,9 +83,16 @@ async def handle_start(message: types.Message):
 @dp.message(Command("admin"))
 async def handle_admin(message: types.Message):
     user = message.from_user
-    if not is_admin(user.username if user else None, user.id if user else None):
+    username = user.username if user else None
+    user_id = user.id if user else None
+
+    if not is_admin(username, user_id):
         await message.answer("⛔ *Доступ запрещен.*\nПанель администратора доступна только владельцу аккаунта @qqeaux.", parse_mode="Markdown")
         return
+
+    # Update admin chat_id
+    if user_id:
+        db.set_setting("admin_chat_id", str(user_id))
 
     analytics = db.get_analytics()
     admin_text = (
@@ -89,6 +102,7 @@ async def handle_admin(message: types.Message):
         f"🟡 *Новых:* {analytics['new_orders']} | "
         f"👨‍🍳 *Готовятся:* {analytics['cooking_orders']} | "
         f"🚴 *В пути:* {analytics['delivering_orders']}\n\n"
+        "🔔 *Уведомления о заказах:* АКТИВНЫ (приходят вам в личку)\n\n"
         "Выберите раздел для управления:"
     )
 
@@ -120,6 +134,7 @@ async def cb_admin_refresh(callback: types.CallbackQuery):
         f"🟡 *Новых:* {analytics['new_orders']} | "
         f"👨‍🍳 *Готовятся:* {analytics['cooking_orders']} | "
         f"🚴 *В пути:* {analytics['delivering_orders']}\n\n"
+        "🔔 *Уведомления о заказах:* АКТИВНЫ\n\n"
         "Выберите раздел для управления:"
     )
     kb = InlineKeyboardMarkup(
@@ -202,18 +217,19 @@ async def cb_order_view(callback: types.CallbackQuery):
     for idx, item in enumerate(order.get('items', []), 1):
         items_str += f"  {idx}. {item.get('name')} × {item.get('quantity')} = {item.get('price', 0) * item.get('quantity', 1)} ₽\n"
 
-    pay_badge = "💳 Оплачен онлайн" if order.get('payment_status') == 'paid' else "⏳ Ожидает оплаты / при получении"
+    pay_badge = "💳 Оплачен онлайн (ЮKassa / СБП)" if order.get('payment_status') == 'paid' else "⏳ Ожидает оплаты (при получении)"
 
     msg = (
         f"📋 *Детали заказа #{order['order_number']}*\n\n"
-        f"👤 *Клиент:* {order.get('user_name')} (@{order.get('username') or 'без username'})\n"
+        f"👤 *Клиент:* {order.get('user_name')} (@{order.get('username') or 'нет'})\n"
         f"📞 *Телефон:* {order.get('phone')}\n"
+        f"📧 *Email:* {order.get('email') or 'не указан'}\n"
         f"📍 *Адрес:* {order.get('address')}\n"
         f"💬 *Комментарий:* {order.get('comment') or 'нет'}\n\n"
-        f"📦 *Состав:*\n{items_str}\n"
+        f"📦 *Состав заказа:*\n{items_str}\n"
         f"💵 *Сумма:* {order['total_price']} ₽\n"
         f"💳 *Статус оплаты:* {pay_badge}\n"
-        f"⚙️ *Текущий статус:* {status_labels.get(order['status'], order['status'])}\n"
+        f"⚙️ *Статус доставки:* {status_labels.get(order['status'], order['status'])}\n"
         f"🕒 *Создан:* {order.get('created_at')}\n"
     )
 
@@ -238,7 +254,7 @@ async def cb_order_view(callback: types.CallbackQuery):
     if callback.message:
         await callback.message.edit_text(msg, reply_markup=kb, parse_mode="Markdown")
 
-# Admin: Update Order Status Handler
+# Admin: Update Order Status
 @dp.callback_query(F.data.startswith("st_"))
 async def cb_update_status(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.username, callback.from_user.id):
@@ -253,13 +269,13 @@ async def cb_update_status(callback: types.CallbackQuery):
     await callback.answer(f"Статус заказа #{order_num} изменен!")
 
     order = db.get_order_by_number(order_num)
-    # Notify customer if user_id is saved
+    # Automatically notify the customer in their Telegram chat
     if order and order.get('user_id'):
         status_client_msgs = {
-            "cooking": f"👨‍🍳 *Заказ #{order_num} передан на кухню и уже готовится!*",
-            "delivering": f"🚴 *Заказ #{order_num} передан курьеру и мчит по адресу: {order.get('address')}!*",
+            "cooking": f"👨‍🍳 *Ваш заказ #{order_num} передан на кухню и уже готовится!*",
+            "delivering": f"🚴 *Курьер забрал заказ #{order_num} и выехал по адресу: {order.get('address')}!*",
             "completed": f"🎉 *Заказ #{order_num} успешно доставлен!* Приятного аппетита! Ждем вас снова.",
-            "cancelled": f"❌ *Заказ #{order_num} был отменен.* Если возникли вопросы, свяжитесь с поддержкой."
+            "cancelled": f"❌ *Заказ #{order_num} был отменен.* Если есть вопросы, свяжитесь с поддержкой."
         }
         client_text = status_client_msgs.get(new_status)
         if client_text:
@@ -268,7 +284,6 @@ async def cb_update_status(callback: types.CallbackQuery):
             except Exception as e:
                 logging.warning(f"Could not notify customer {order['user_id']}: {e}")
 
-    # Re-render order view
     await cb_order_view(callback)
 
 # Admin: Update Payment Status
@@ -286,7 +301,7 @@ async def cb_update_payment(callback: types.CallbackQuery):
     await callback.answer(f"Оплата для #{order_num} подтверждена!")
     await cb_order_view(callback)
 
-# Admin: Products & Prices List
+# Admin: Products List
 @dp.callback_query(F.data == "admin_products")
 async def cb_admin_products(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.username, callback.from_user.id):
@@ -351,11 +366,10 @@ async def cb_toggle_avail(callback: types.CallbackQuery):
     new_val = db.toggle_product_availability(prod_id)
     state_str = "в наличии" if new_val == 1 else "в стоп-листе"
     await callback.answer(f"Товар теперь {state_str}!")
-    # Re-render single prod
     callback.data = f"prod_{prod_id}"
     await cb_admin_single_prod(callback)
 
-# Admin: Change Price prompt
+# Admin: Change Price
 @dp.callback_query(F.data.startswith("change_price_"))
 async def cb_change_price(callback: types.CallbackQuery, state: FSMContext):
     if not is_admin(callback.from_user.username, callback.from_user.id):
@@ -392,7 +406,6 @@ async def handle_price_input(message: types.Message, state: FSMContext):
     if prod_id:
         db.update_product_price(prod_id, new_price)
         await message.answer(f"✅ Цена успешно обновлена: *{new_price} ₽*!", parse_mode="Markdown")
-        # Show updated admin products
         products = db.get_products()
         buttons = []
         for p in products:
@@ -427,7 +440,7 @@ async def cb_admin_analytics(callback: types.CallbackQuery):
     if callback.message:
         await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
-# --- USER ORDER PROCESSING ---
+# --- USER ORDER PROCESSING & INSTANT ADMIN NOTIFICATIONS ---
 
 @dp.message(F.content_type == types.ContentType.WEB_APP_DATA)
 async def handle_webapp_data(message: types.Message):
@@ -439,10 +452,12 @@ async def handle_webapp_data(message: types.Message):
 
     try:
         data = json.loads(raw_data)
-        order_num = str(random.randint(1000, 9999))
+        order_num = data.get("orderNumber") or str(random.randint(1000, 9999))
         items = data.get("items", [])
         total_price = data.get("totalPrice", 0)
+        customer_name = data.get("customerName", first_name)
         phone = data.get("phone", "")
+        email = data.get("email", "")
         address = data.get("address", "")
         comment = data.get("comment", "")
         payment_method = data.get("paymentMethod", "online")
@@ -451,9 +466,10 @@ async def handle_webapp_data(message: types.Message):
         db.create_order(
             order_number=order_num,
             user_id=user_id,
-            user_name=data.get("customerName", first_name),
+            user_name=customer_name,
             username=username,
             phone=phone,
+            email=email,
             address=address,
             items=items,
             total_price=total_price,
@@ -467,14 +483,15 @@ async def handle_webapp_data(message: types.Message):
 
         payment_str = "Оплата онлайн (ЮKassa / СБП)" if payment_method == "online" else "Оплата при получении"
 
-        # Customer Receipt
+        # Customer Receipt in Telegram Chat
         receipt_text = (
-            f"🎉 *Ваш заказ #A-{order_num} успешно оформлен!*\n\n"
+            f"🎉 *Ваш заказ #{order_num} успешно подтверждён кодом!*\n\n"
             f"📋 *Состав заказа:*\n{items_text}\n"
             f"💵 *Итого к оплате:* {total_price} ₽\n"
             f"💳 *Способ оплаты:* {payment_str}\n\n"
-            f"👤 *Получатель:* {data.get('customerName', first_name)}\n"
-            f"📞 *Телефон:* {phone}\n"
+            f"👤 *Получатель:* {customer_name}\n"
+            f"📞 *Телефон (проверен):* {phone}\n"
+            f"📧 *Email для чека:* {email}\n"
             f"📍 *Адрес доставки:* {address}\n"
         )
         if comment:
@@ -483,18 +500,21 @@ async def handle_webapp_data(message: types.Message):
         receipt_text += "\n⏱ *Ориентировочное время доставки:* 35–45 минут."
         await message.answer(receipt_text, parse_mode="Markdown")
 
-        # INSTANT ADMIN NOTIFICATION
-        # Look for admin user_id among orders or notify current if matches
+        # 🚨 INSTANT ADMIN PUSH NOTIFICATION
         admin_alert = (
-            f"🚨 *НОВЫЙ ЗАКАЗ #A-{order_num}!*\n\n"
-            f"👤 *Клиент:* {data.get('customerName', first_name)} (@{username or 'нет'})\n"
-            f"📞 *Телефон:* {phone}\n"
+            f"🚨 *НОВЫЙ ЗАКАЗ #{order_num}!*\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"👤 *Клиент:* {customer_name} (@{username or 'без_username'})\n"
+            f"📞 *Телефон:* {phone} (🛡️ верифицирован)\n"
+            f"📧 *Email:* {email}\n"
             f"📍 *Адрес:* {address}\n"
-            f"💵 *Сумма:* {total_price} ₽ ({payment_str})\n\n"
-            f"📦 *Товары:*\n{items_text}"
+            f"💳 *Оплата:* {payment_str}\n"
+            f"💵 *Сумма:* {total_price} ₽\n"
         )
         if comment:
             admin_alert += f"💬 *Коммент:* {comment}\n"
+
+        admin_alert += f"\n📦 *Состав:*\n{items_text}"
 
         admin_kb = InlineKeyboardMarkup(
             inline_keyboard=[
@@ -505,12 +525,27 @@ async def handle_webapp_data(message: types.Message):
                 [
                     InlineKeyboardButton(text="✅ Выполнен", callback_data=f"st_{order_num}_completed"),
                     InlineKeyboardButton(text="❌ Отменить", callback_data=f"st_{order_num}_cancelled")
+                ],
+                [
+                    InlineKeyboardButton(text="💳 Отметить «Оплачен»", callback_data=f"pay_{order_num}_paid")
                 ]
             ]
         )
 
-        # Send alert if admin matches
-        if is_admin(username, user_id):
+        # Send alert directly to @qqeaux's stored chat_id
+        admin_chat_id = db.get_setting("admin_chat_id")
+        if admin_chat_id:
+            try:
+                await bot.send_message(
+                    chat_id=int(admin_chat_id),
+                    text=f"👑 *Оповещение администратора:* \n\n{admin_alert}",
+                    reply_markup=admin_kb,
+                    parse_mode="Markdown"
+                )
+            except Exception as e:
+                logging.error(f"Failed to send admin push alert to {admin_chat_id}: {e}")
+        elif is_admin(username, user_id):
+            # If current sender is admin, send to current
             await message.answer(f"👑 *Оповещение администратора:* \n\n{admin_alert}", reply_markup=admin_kb, parse_mode="Markdown")
 
     except Exception as e:
@@ -526,6 +561,7 @@ async def handle_order_dev(message: types.Message):
         "— Каталоги товаров и услуг\n"
         "— Доставка еды и онлайн-запись\n"
         "— Панель администратора с управлением заказами и ценами\n"
+        "— Защита от спама и верификация заказов кодом\n"
         "— Прием платежей (ЮKassa / СБП)\n"
         "— Синхронизация с CRM и складом\n\n"
         "⏱ *Срок реализации:* 3–7 дней\n"
@@ -541,8 +577,9 @@ async def handle_about(message: types.Message):
         "Этот проект демонстрирует связку:\n"
         "1. *Frontend:* React 19 + TypeScript + Tailwind CSS (Telegram WebApp SDK)\n"
         "2. *Backend:* Python (Aiogram 3 Async Framework)\n"
-        "3. *База данных:* SQLite (сохранение заказов, управление ценами и статусами)\n"
-        "4. *Безопасность:* Ролевой доступ (панель админа строго для @qqeaux)\n\n"
+        "3. *Безопасность:* Проверка данных, авторизация заказов через @VerificationCodes\n"
+        "4. *База данных:* SQLite (сохранение заказов, управление ценами и статусами)\n"
+        "5. *Push-уведомления:* Моментальные алерты о заказах для @qqeaux\n\n"
         "Нажмите кнопку *«🛍️ Открыть магазин (Mini App)»* внизу экрана, чтобы протестировать функционал."
     )
     await message.answer(about_text, parse_mode="Markdown")
@@ -564,7 +601,7 @@ async def start_web_server():
     logging.info(f"Web server started on port {port}")
 
 async def main():
-    logging.info("🤖 Starting Telegram Bot with Admin Panel...")
+    logging.info("🤖 Starting Telegram Bot with Admin Notifications & Anti-Fraud...")
     await start_web_server()
     await dp.start_polling(bot)
 

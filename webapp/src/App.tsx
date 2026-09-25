@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   ShoppingBag, 
   Search, 
@@ -8,32 +8,80 @@ import {
   Clock, 
   MapPin, 
   Phone, 
+  Mail,
   User, 
   CheckCircle2, 
   Sparkles,
   CreditCard,
   Banknote,
-  ShieldCheck,
-  TrendingUp,
   Package,
   Layers,
   Edit2,
   Check,
-  AlertTriangle,
-  ChevronRight,
-  ArrowLeft
+  TrendingUp,
+  ArrowLeft,
+  KeyRound,
+  ShieldAlert,
+  BellRing,
+  RefreshCw
 } from 'lucide-react';
 import { CATEGORIES, PRODUCTS as INITIAL_PRODUCTS } from './data/products';
 import { Product, CartItem, OrderData, OrderStatus } from './types';
+
+// Helper: Format Russian Phone Number Mask
+function formatRussianPhone(raw: string): string {
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('8')) {
+    digits = '7' + digits.slice(1);
+  } else if (!digits.startsWith('7') && digits.length > 0) {
+    digits = '7' + digits;
+  }
+  digits = digits.slice(0, 11);
+
+  if (digits.length === 0) return '';
+  if (digits.length <= 1) return '+7';
+  if (digits.length <= 4) return `+7 (${digits.slice(1)}`;
+  if (digits.length <= 7) return `+7 (${digits.slice(1, 4)}) ${digits.slice(4)}`;
+  if (digits.length <= 9) return `+7 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  return `+7 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
+}
+
+// Validation helpers
+function isValidPhone(phone: string): boolean {
+  const digits = phone.replace(/\D/g, '');
+  // Must be 11 digits and start with 79... (Russian mobile numbers)
+  return digits.length === 11 && digits.startsWith('79');
+}
+
+function isValidName(name: string): boolean {
+  const trimmed = name.trim();
+  const words = trimmed.split(/\s+/);
+  if (words.length < 2) return false;
+  // Only letters and hyphens
+  const nameRegex = /^[A-Za-zА-Яа-яЁё\-]+$/;
+  return words.every(w => w.length >= 2 && nameRegex.test(w));
+}
+
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email.trim());
+}
+
+function isValidAddress(address: string): boolean {
+  const trimmed = address.trim();
+  // At least 8 chars and contains at least one digit (house number)
+  return trimmed.length >= 8 && /\d/.test(trimmed);
+}
 
 // Initial demo orders for admin
 const INITIAL_DEMO_ORDERS: OrderData[] = [
   {
     id: 'ord-1024',
     orderNumber: '1024',
-    customerName: 'Алексей С.',
+    customerName: 'Алексей Смирнов',
     phone: '+7 (926) 450-12-88',
-    address: 'ул. Тверская, д. 14, кв. 32',
+    email: 'alex.smirnov@yandex.ru',
+    address: 'г. Москва, ул. Тверская, д. 14, кв. 32',
     comment: 'Код домофона 32К',
     totalPrice: 1760,
     paymentMethod: 'online',
@@ -49,9 +97,10 @@ const INITIAL_DEMO_ORDERS: OrderData[] = [
   {
     id: 'ord-1023',
     orderNumber: '1023',
-    customerName: 'Мария В.',
+    customerName: 'Мария Васильева',
     phone: '+7 (916) 880-99-11',
-    address: 'Ленинский проспект, 45, корп. 2',
+    email: 'mariya.v@mail.ru',
+    address: 'г. Москва, Ленинский проспект, 45, корп. 2, кв. 10',
     comment: 'Позвонить за 5 минут до приезда',
     totalPrice: 900,
     paymentMethod: 'cash',
@@ -100,28 +149,48 @@ export function App() {
   // Checkout form state
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [comment, setComment] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'cash'>('online');
 
-  // Secret tap counter to unlock admin outside Telegram (for dev/demo in browser)
+  // Form errors
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Telegram 4-digit code verification state
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [inputCode, setInputCode] = useState(['', '', '', '']);
+  const [codeError, setCodeError] = useState('');
+  const [resendTimer, setResendTimer] = useState(60);
+  const [showNotificationToast, setShowNotificationToast] = useState(false);
+
+  // Code inputs ref
+  const codeInputRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null)
+  ];
+
+  // Secret tap counter for developer browser testing
   const [secretTaps, setSecretTaps] = useState(0);
 
-  // Save products when modified
+  // Save products
   useEffect(() => {
     localStorage.setItem('tg_store_products', JSON.stringify(products));
   }, [products]);
 
-  // Save orders when modified
+  // Save orders
   useEffect(() => {
     localStorage.setItem('tg_store_orders', JSON.stringify(orders));
   }, [orders]);
 
-  // Check admin identity: @qqeaux strictly
+  // Check admin: @qqeaux strictly
   const isActualAdmin = useMemo(() => {
     const tgUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username?.toLowerCase() || '';
     if (tgUsername === 'qqeaux') return true;
-    if (secretTaps >= 5) return true; // hidden fallback for developer testing in chrome
+    if (secretTaps >= 5) return true;
     return false;
   }, [secretTaps]);
 
@@ -138,10 +207,21 @@ export function App() {
     }
   }, []);
 
-  const triggerHaptic = (type: 'light' | 'medium' | 'success') => {
+  // Resend code countdown timer
+  useEffect(() => {
+    let interval: any;
+    if (isVerifyingCode && resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isVerifyingCode, resendTimer]);
+
+  const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'success' | 'error') => {
     if (window.Telegram?.WebApp?.HapticFeedback) {
-      if (type === 'success') {
-        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      if (type === 'success' || type === 'error') {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred(type);
       } else {
         window.Telegram.WebApp.HapticFeedback.impactOccurred(type);
       }
@@ -198,13 +278,106 @@ export function App() {
     return cartItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   }, [cartItems]);
 
-  // Order submission
-  const handleSubmitOrder = (e: React.FormEvent) => {
+  // Phone input mask handler
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatRussianPhone(e.target.value);
+    setPhone(formatted);
+    if (errors.phone) {
+      setErrors(prev => ({ ...prev, phone: '' }));
+    }
+  };
+
+  // Validate form before opening code verification
+  const handleInitiateOrder = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!address.trim() || !phone.trim()) {
-      alert('Пожалуйста, укажите телефон и адрес доставки');
+    const newErrors: Record<string, string> = {};
+
+    if (!isValidName(customerName)) {
+      newErrors.name = 'Укажите реальные Имя и Фамилию через пробел (например: Иван Иванов)';
+    }
+
+    if (!isValidPhone(phone)) {
+      newErrors.phone = 'Укажите реальный мобильный номер РФ (+7 9XX XXX-XX-XX)';
+    }
+
+    if (!isValidEmail(email)) {
+      newErrors.email = 'Укажите корректный email (например: ivan@yandex.ru)';
+    }
+
+    if (!isValidAddress(address)) {
+      newErrors.address = 'Укажите полный адрес (город, улица, номер дома и кв)';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      triggerHaptic('error');
+      setErrors(newErrors);
       return;
     }
+
+    setErrors({});
+    triggerHaptic('medium');
+
+    // Generate random 4-digit code
+    const code = String(Math.floor(1000 + Math.random() * 9000));
+    setGeneratedCode(code);
+    setInputCode(['', '', '', '']);
+    setCodeError('');
+    setResendTimer(60);
+    setIsVerifyingCode(true);
+
+    // Show simulated Telegram notification toast
+    setShowNotificationToast(true);
+    setTimeout(() => {
+      codeInputRefs[0].current?.focus();
+    }, 150);
+  };
+
+  // Code input handling
+  const handleCodeDigitChange = (index: number, val: string) => {
+    const clean = val.replace(/\D/g, '').slice(-1);
+    const updated = [...inputCode];
+    updated[index] = clean;
+    setInputCode(updated);
+    setCodeError('');
+
+    if (clean && index < 3) {
+      codeInputRefs[index + 1].current?.focus();
+    }
+
+    // If 4 digits entered, auto-verify
+    if (clean && index === 3 && updated.every(d => d !== '')) {
+      const fullCode = updated.join('');
+      verifyAndFinalizeOrder(fullCode);
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !inputCode[index] && index > 0) {
+      codeInputRefs[index - 1].current?.focus();
+    }
+  };
+
+  const handleResendCode = () => {
+    if (resendTimer > 0) return;
+    triggerHaptic('light');
+    const newCode = String(Math.floor(1000 + Math.random() * 9000));
+    setGeneratedCode(newCode);
+    setInputCode(['', '', '', '']);
+    setCodeError('');
+    setResendTimer(60);
+    setShowNotificationToast(true);
+    codeInputRefs[0].current?.focus();
+  };
+
+  // Finalize order after successful code verification
+  const verifyAndFinalizeOrder = (codeEntered: string) => {
+    if (codeEntered !== generatedCode) {
+      triggerHaptic('error');
+      setCodeError('Неверный код подтверждения! Проверьте код из Telegram.');
+      return;
+    }
+
+    triggerHaptic('success');
 
     const orderNum = String(Math.floor(1000 + Math.random() * 9000));
     const newOrder: OrderData = {
@@ -217,32 +390,33 @@ export function App() {
         price: item.product.price
       })),
       totalPrice,
-      customerName: customerName || 'Покупатель',
-      phone,
-      address,
-      comment,
+      customerName: customerName.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      address: address.trim(),
+      comment: comment.trim(),
       paymentMethod,
       paymentStatus: paymentMethod === 'online' ? 'paid' : 'pending',
       status: 'new',
       createdAt: 'Только что'
     };
 
-    triggerHaptic('success');
-
     // Send payload to Telegram Bot
     if (window.Telegram?.WebApp?.sendData) {
       window.Telegram.WebApp.sendData(JSON.stringify(newOrder));
     }
 
-    // Add to local orders list for admin view
+    // Save to local admin orders list
     setOrders(prev => [newOrder, ...prev]);
 
-    setOrderSuccess(newOrder);
+    setIsVerifyingCode(false);
+    setShowNotificationToast(false);
     setIsCartOpen(false);
     setCart({});
+    setOrderSuccess(newOrder);
   };
 
-  // --- ADMIN ACTIONS ---
+  // Admin actions
   const toggleProductAvailability = (productId: string) => {
     triggerHaptic('medium');
     setProducts(prev => prev.map(p => {
@@ -291,7 +465,7 @@ export function App() {
     }));
   };
 
-  // Analytics metrics
+  // Metrics
   const totalRevenue = useMemo(() => {
     return orders.reduce((sum, o) => sum + o.totalPrice, 0);
   }, [orders]);
@@ -304,7 +478,6 @@ export function App() {
   if (isAdminMode && isActualAdmin) {
     return (
       <div className="min-h-screen bg-slate-900 text-slate-100 pb-20">
-        {/* Admin Header */}
         <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -328,7 +501,6 @@ export function App() {
             </button>
           </div>
 
-          {/* Quick Metrics Bar */}
           <div className="grid grid-cols-3 gap-2 pt-1">
             <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
               <div className="text-[10px] text-slate-400">Выручка</div>
@@ -339,12 +511,11 @@ export function App() {
               <div className="text-sm font-black text-blue-400">{activeOrdersCount} зак.</div>
             </div>
             <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-              <div className="text-[10px] text-slate-400">Всего позиций</div>
+              <div className="text-[10px] text-slate-400">Позиций</div>
               <div className="text-sm font-black text-emerald-400">{products.length} шт.</div>
             </div>
           </div>
 
-          {/* Admin Tabs */}
           <div className="flex gap-2 pt-3 border-t border-slate-800/80 mt-3">
             <button
               onClick={() => { triggerHaptic('light'); setAdminTab('orders'); }}
@@ -437,16 +608,22 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* Customer info */}
-                  <div className="bg-slate-900/80 rounded-xl p-2.5 text-xs space-y-1 border border-slate-800">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Клиент:</span>
+                  {/* Verified Customer info with email and phone */}
+                  <div className="bg-slate-900/80 rounded-xl p-2.5 text-xs space-y-1.5 border border-slate-800">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">ФИО клиента:</span>
                       <span className="font-semibold text-slate-200">{order.customerName}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Телефон:</span>
-                      <a href={`tel:${order.phone}`} className="font-medium text-blue-400">{order.phone}</a>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Телефон (проверен):</span>
+                      <a href={`tel:${order.phone}`} className="font-bold text-blue-400">{order.phone}</a>
                     </div>
+                    {order.email && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">Email:</span>
+                        <span className="font-medium text-slate-300">{order.email}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-slate-400">Адрес:</span>
                       <span className="font-medium text-slate-300 truncate max-w-[200px]">{order.address}</span>
@@ -460,7 +637,7 @@ export function App() {
 
                   {/* Items */}
                   <div className="text-xs space-y-1">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase">Позиции:</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Позиции заказа:</div>
                     {order.items.map((it, idx) => (
                       <div key={idx} className="flex justify-between text-slate-300">
                         <span>• {it.name} × {it.quantity}</span>
@@ -540,7 +717,6 @@ export function App() {
                       </div>
                       <div className="text-xs text-slate-400">{product.weight}</div>
 
-                      {/* Price row */}
                       <div className="mt-2 flex items-center justify-between">
                         {isEditing ? (
                           <div className="flex items-center gap-1.5">
@@ -571,7 +747,6 @@ export function App() {
                           </div>
                         )}
 
-                        {/* Availability Toggle */}
                         <button
                           onClick={() => toggleProductAvailability(product.id)}
                           className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all ${
@@ -616,22 +791,6 @@ export function App() {
                 </div>
               </div>
             </div>
-
-            <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 space-y-2">
-              <div className="text-xs font-bold text-slate-300">Статистика по способам оплаты:</div>
-              <div className="flex justify-between text-xs py-1 border-b border-slate-700">
-                <span className="text-slate-400">Онлайн (ЮKassa / СБП):</span>
-                <span className="font-bold text-white">
-                  {orders.filter(o => o.paymentMethod === 'online').length} заказов
-                </span>
-              </div>
-              <div className="flex justify-between text-xs py-1">
-                <span className="text-slate-400">Оплата при получении:</span>
-                <span className="font-bold text-white">
-                  {orders.filter(o => o.paymentMethod === 'cash').length} заказов
-                </span>
-              </div>
-            </div>
           </main>
         )}
       </div>
@@ -641,7 +800,36 @@ export function App() {
   // ================= CLIENT STORE VIEW =================
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-28">
-      {/* Client Header */}
+      {/* Telegram verification notification toast */}
+      {showNotificationToast && (
+        <div className="fixed top-3 left-3 right-3 max-w-md mx-auto z-60 animate-in slide-in-from-top duration-300">
+          <div className="bg-slate-900 text-white rounded-2xl p-3.5 shadow-2xl border border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center text-white shrink-0">
+                <BellRing className="w-5 h-5 animate-bounce" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 text-xs text-blue-400 font-bold">
+                  <span>@VerificationCodes</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                  <span className="text-[10px] text-slate-400">сейчас</span>
+                </div>
+                <div className="text-xs text-slate-200 mt-0.5">
+                  Ваш код подтверждения заказа: <strong className="text-amber-400 text-sm tracking-widest">{generatedCode}</strong>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowNotificationToast(false)}
+              className="text-slate-400 hover:text-white p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
       <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 pt-3 pb-3 shadow-xs">
         <div className="flex items-center justify-between mb-2">
           <div>
@@ -660,7 +848,6 @@ export function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* If actual admin (@qqeaux), display exclusive Admin Button */}
             {isActualAdmin && (
               <button
                 onClick={() => {
@@ -908,44 +1095,110 @@ export function App() {
                 ))}
               </div>
 
-              {/* Delivery Details Form */}
-              <form id="order-form" onSubmit={handleSubmitOrder} className="space-y-3.5">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Куда доставить</h3>
+              {/* Delivery Details Form with Anti-Fool Validation */}
+              <form id="order-form" onSubmit={handleInitiateOrder} className="space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Данные получателя</h3>
+                  <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
+                    🛡️ Проверка данных
+                  </span>
+                </div>
                 
-                <div className="relative">
-                  <User className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Имя получателя"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:border-blue-500"
-                  />
+                {/* Full Name */}
+                <div>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Фамилия и Имя (например: Иван Иванов)"
+                      value={customerName}
+                      onChange={(e) => {
+                        setCustomerName(e.target.value);
+                        if (errors.name) setErrors(prev => ({ ...prev, name: '' }));
+                      }}
+                      className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-hidden transition-all ${
+                        errors.name ? 'border-rose-500 bg-rose-50/30' : 'border-slate-200 focus:border-blue-500'
+                      }`}
+                    />
+                  </div>
+                  {errors.name && (
+                    <p className="text-[11px] text-rose-600 mt-1 pl-1 flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3 shrink-0" />
+                      <span>{errors.name}</span>
+                    </p>
+                  )}
                 </div>
 
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                  <input
-                    type="tel"
-                    required
-                    placeholder="+7 (___) ___-__-__"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:border-blue-500"
-                  />
+                {/* Phone */}
+                <div>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                    <input
+                      type="tel"
+                      placeholder="+7 (9XX) XXX-XX-XX"
+                      value={phone}
+                      onChange={handlePhoneChange}
+                      className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-hidden transition-all ${
+                        errors.phone ? 'border-rose-500 bg-rose-50/30' : 'border-slate-200 focus:border-blue-500'
+                      }`}
+                    />
+                  </div>
+                  {errors.phone && (
+                    <p className="text-[11px] text-rose-600 mt-1 pl-1 flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3 shrink-0" />
+                      <span>{errors.phone}</span>
+                    </p>
+                  )}
                 </div>
 
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Город, улица, дом, квартира"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:border-blue-500"
-                  />
+                {/* Email */}
+                <div>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                    <input
+                      type="email"
+                      placeholder="Электронная почта (для чека ЮKassa)"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
+                      }}
+                      className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-hidden transition-all ${
+                        errors.email ? 'border-rose-500 bg-rose-50/30' : 'border-slate-200 focus:border-blue-500'
+                      }`}
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="text-[11px] text-rose-600 mt-1 pl-1 flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3 shrink-0" />
+                      <span>{errors.email}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Address */}
+                <div>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Город, улица, номер дома, квартира"
+                      value={address}
+                      onChange={(e) => {
+                        setAddress(e.target.value);
+                        if (errors.address) setErrors(prev => ({ ...prev, address: '' }));
+                      }}
+                      className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-hidden transition-all ${
+                        errors.address ? 'border-rose-500 bg-rose-50/30' : 'border-slate-200 focus:border-blue-500'
+                      }`}
+                    />
+                  </div>
+                  {errors.address && (
+                    <p className="text-[11px] text-rose-600 mt-1 pl-1 flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3 shrink-0" />
+                      <span>{errors.address}</span>
+                    </p>
+                  )}
                 </div>
 
                 <input
@@ -998,7 +1251,90 @@ export function App() {
                 form="order-form"
                 className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-3.5 rounded-2xl font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
               >
-                <span>Подтвердить заказ ({totalPrice} ₽)</span>
+                <span>Подтвердить по коду Telegram ({totalPrice} ₽)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Telegram 4-Digit Code Verification Modal */}
+      {isVerifyingCode && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+          <div className="w-full max-w-sm bg-white rounded-3xl p-6 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+              <KeyRound className="w-7 h-7" />
+            </div>
+
+            <h2 className="text-lg font-black text-slate-900">Подтверждение заказа</h2>
+            <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">
+              Мы отправили 4-значный проверочный код в ваш Telegram <strong>@VerificationCodes</strong>
+            </p>
+
+            {/* 4 Digit Boxes */}
+            <div className="flex justify-center gap-3 mb-4">
+              {[0, 1, 2, 3].map((idx) => (
+                <input
+                  key={idx}
+                  ref={codeInputRefs[idx]}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={inputCode[idx]}
+                  onChange={(e) => handleCodeDigitChange(idx, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(idx, e)}
+                  className={`w-13 h-14 text-center text-2xl font-black rounded-2xl border-2 transition-all ${
+                    codeError 
+                      ? 'border-rose-500 bg-rose-50/50 text-rose-600' 
+                      : inputCode[idx] 
+                        ? 'border-blue-600 bg-blue-50/40 text-blue-900' 
+                        : 'border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-500 focus:bg-white'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {codeError && (
+              <p className="text-xs font-semibold text-rose-600 mb-3 animate-shake">
+                {codeError}
+              </p>
+            )}
+
+            {/* Countdown / Resend */}
+            <div className="text-xs text-slate-400 mb-5">
+              {resendTimer > 0 ? (
+                <span>Отправить код повторно через <strong className="text-slate-600">{resendTimer} с</strong></span>
+              ) : (
+                <button
+                  onClick={handleResendCode}
+                  className="text-blue-600 font-bold hover:underline inline-flex items-center gap-1"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Отправить код повторно</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setIsVerifyingCode(false);
+                  setShowNotificationToast(false);
+                }}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={() => verifyAndFinalizeOrder(inputCode.join(''))}
+                disabled={inputCode.some(d => !d)}
+                className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${
+                  inputCode.every(d => d) 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/30' 
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                Подтвердить
               </button>
             </div>
           </div>
@@ -1007,20 +1343,28 @@ export function App() {
 
       {/* Success Modal */}
       {orderSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="w-full max-w-sm bg-white rounded-3xl p-6 text-center shadow-xl animate-in zoom-in-95 duration-200">
             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-            <h2 className="text-xl font-black text-slate-900 mb-1">Заказ #{orderSuccess.orderNumber} принят!</h2>
+            <h2 className="text-xl font-black text-slate-900 mb-1">Заказ #{orderSuccess.orderNumber} подтверждён!</h2>
             <p className="text-xs text-slate-500 mb-4">
-              Мы уже начали готовить ваш заказ. Детали отправлены в бот.
+              Номер телефона верифицирован. Детали заказа и электронный чек отправлены в бот.
             </p>
 
             <div className="bg-slate-50 rounded-2xl p-3.5 text-left text-xs space-y-1.5 mb-5 border border-slate-100">
               <div className="flex justify-between">
                 <span className="text-slate-400">Получатель:</span>
                 <span className="font-semibold text-slate-800">{orderSuccess.customerName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Телефон:</span>
+                <span className="font-medium text-slate-800">{orderSuccess.phone}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Email:</span>
+                <span className="font-medium text-slate-800">{orderSuccess.email}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Сумма:</span>

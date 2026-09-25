@@ -8,6 +8,14 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
+    # Settings table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )
+    """)
+
     # Orders table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS orders (
@@ -17,6 +25,7 @@ def init_db():
         user_name TEXT,
         username TEXT,
         phone TEXT,
+        email TEXT,
         address TEXT,
         items_json TEXT,
         total_price INTEGER,
@@ -27,6 +36,12 @@ def init_db():
         created_at TEXT
     )
     """)
+
+    # Ensure email column exists if table was already created
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN email TEXT")
+    except sqlite3.OperationalError:
+        pass
 
     # Products table
     cursor.execute("""
@@ -65,19 +80,35 @@ def init_db():
     conn.commit()
     conn.close()
 
-def create_order(order_number, user_id, user_name, username, phone, address, items, total_price, payment_method, comment=""):
+def set_setting(key: str, value: str):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
+    conn.commit()
+    conn.close()
+
+def get_setting(key: str, default=None):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else default
+
+def create_order(order_number, user_id, user_name, username, phone, email, address, items, total_price, payment_method, comment=""):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cursor.execute("""
-    INSERT INTO orders (order_number, user_id, user_name, username, phone, address, items_json, total_price, payment_method, comment, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO orders (order_number, user_id, user_name, username, phone, email, address, items_json, total_price, payment_method, comment, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         order_number, 
         user_id, 
         user_name, 
         username, 
-        phone, 
+        phone,
+        email,
         address, 
         json.dumps(items, ensure_ascii=False), 
         total_price, 
