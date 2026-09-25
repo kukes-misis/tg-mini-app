@@ -157,22 +157,6 @@ export function App() {
   // Form errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Telegram 4-digit code verification state
-  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState('');
-  const [inputCode, setInputCode] = useState(['', '', '', '']);
-  const [codeError, setCodeError] = useState('');
-  const [resendTimer, setResendTimer] = useState(60);
-  const [showNotificationToast, setShowNotificationToast] = useState(false);
-
-  // Code inputs ref
-  const codeInputRefs = [
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null)
-  ];
-
   // Secret tap counter for developer browser testing
   const [secretTaps, setSecretTaps] = useState(0);
 
@@ -208,16 +192,6 @@ export function App() {
     }
   }, []);
 
-  // Resend code countdown timer
-  useEffect(() => {
-    let interval: any;
-    if (isVerifyingCode && resendTimer > 0) {
-      interval = setInterval(() => {
-        setResendTimer(prev => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isVerifyingCode, resendTimer]);
 
   const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'success' | 'error') => {
     if (window.Telegram?.WebApp?.HapticFeedback) {
@@ -288,8 +262,8 @@ export function App() {
     }
   };
 
-  // Validate form before opening code verification
-  const handleInitiateOrder = (e: React.FormEvent) => {
+  // Direct order submit (without verification code)
+  const handleSubmitOrder = (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
 
@@ -316,102 +290,6 @@ export function App() {
     }
 
     setErrors({});
-    triggerHaptic('medium');
-
-    // Generate random 4-digit code
-    const code = String(Math.floor(1000 + Math.random() * 9000));
-    setGeneratedCode(code);
-    setInputCode(['', '', '', '']);
-    setCodeError('');
-    setResendTimer(60);
-    setIsVerifyingCode(true);
-
-    // Send REAL message to user's Telegram chat via Bot API
-    const BOT_TOKEN = '8869708665:AAGbvrKDDw5nhQ-Bt9YKf7kL3NimYvZYjaM';
-    const targetChatId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 5847598677;
-    try {
-      fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: targetChatId,
-          text: `🔐 *Код подтверждения заказа:*\n\n👉 \`${code}\`\n\nНикому не сообщайте этот код! Введите его в приложении для завершения заказа.`,
-          parse_mode: 'Markdown'
-        })
-      }).catch(console.warn);
-    } catch (e) {
-      console.warn(e);
-    }
-
-    // Show top notification toast as well
-    setShowNotificationToast(true);
-    setTimeout(() => {
-      codeInputRefs[0].current?.focus();
-    }, 150);
-  };
-
-  // Code input handling
-  const handleCodeDigitChange = (index: number, val: string) => {
-    const clean = val.replace(/\D/g, '').slice(-1);
-    const updated = [...inputCode];
-    updated[index] = clean;
-    setInputCode(updated);
-    setCodeError('');
-
-    if (clean && index < 3) {
-      codeInputRefs[index + 1].current?.focus();
-    }
-
-    // If 4 digits entered, auto-verify
-    if (clean && index === 3 && updated.every(d => d !== '')) {
-      const fullCode = updated.join('');
-      verifyAndFinalizeOrder(fullCode);
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !inputCode[index] && index > 0) {
-      codeInputRefs[index - 1].current?.focus();
-    }
-  };
-
-  const handleResendCode = () => {
-    if (resendTimer > 0) return;
-    triggerHaptic('light');
-    const newCode = String(Math.floor(1000 + Math.random() * 9000));
-    setGeneratedCode(newCode);
-    setInputCode(['', '', '', '']);
-    setCodeError('');
-    setResendTimer(60);
-
-    const BOT_TOKEN = '8869708665:AAGbvrKDDw5nhQ-Bt9YKf7kL3NimYvZYjaM';
-    const targetChatId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 5847598677;
-    try {
-      fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: targetChatId,
-          text: `🔐 *Новый код подтверждения заказа:*\n\n👉 \`${newCode}\`\n\nВведите его в приложении.`,
-          parse_mode: 'Markdown'
-        })
-      }).catch(console.warn);
-    } catch (e) {
-      console.warn(e);
-    }
-
-    setShowNotificationToast(true);
-    codeInputRefs[0].current?.focus();
-  };
-
-  // Finalize order after successful code verification
-  const verifyAndFinalizeOrder = (codeEntered: string) => {
-    if (codeEntered !== generatedCode) {
-      triggerHaptic('error');
-      setCodeError('Неверный код подтверждения! Проверьте код из Telegram.');
-      return;
-    }
-
     triggerHaptic('success');
 
     const orderNum = String(Math.floor(1000 + Math.random() * 9000));
@@ -444,8 +322,6 @@ export function App() {
     // Save to local admin orders list
     setOrders(prev => [newOrder, ...prev]);
 
-    setIsVerifyingCode(false);
-    setShowNotificationToast(false);
     setIsCartOpen(false);
     setCart({});
     setOrderSuccess(newOrder);
@@ -835,34 +711,6 @@ export function App() {
   // ================= CLIENT STORE VIEW =================
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-28">
-      {/* Telegram verification notification toast */}
-      {showNotificationToast && (
-        <div className="fixed top-3 left-3 right-3 max-w-md mx-auto z-60 animate-in slide-in-from-top duration-300">
-          <div className="bg-slate-900 text-white rounded-2xl p-3.5 shadow-2xl border border-slate-700 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center text-white shrink-0">
-                <BellRing className="w-5 h-5 animate-bounce" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5 text-xs text-blue-400 font-bold">
-                  <span>@VerificationCodes</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                  <span className="text-[10px] text-slate-400">сейчас</span>
-                </div>
-                <div className="text-xs text-slate-200 mt-0.5">
-                  Ваш код подтверждения заказа: <strong className="text-amber-400 text-sm tracking-widest">{generatedCode}</strong>
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowNotificationToast(false)}
-              className="text-slate-400 hover:text-white p-1"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 pt-3 pb-3 shadow-xs">
@@ -1131,7 +979,7 @@ export function App() {
               </div>
 
               {/* Delivery Details Form with Anti-Fool Validation */}
-              <form id="order-form" onSubmit={handleInitiateOrder} className="space-y-3.5">
+              <form id="order-form" onSubmit={handleSubmitOrder} className="space-y-3.5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Данные получателя</h3>
                   <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
@@ -1286,90 +1134,7 @@ export function App() {
                 form="order-form"
                 className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-3.5 rounded-2xl font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
               >
-                <span>Подтвердить по коду Telegram ({totalPrice} ₽)</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Telegram 4-Digit Code Verification Modal */}
-      {isVerifyingCode && (
-        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
-          <div className="w-full max-w-sm bg-white rounded-3xl p-6 text-center shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
-              <KeyRound className="w-7 h-7" />
-            </div>
-
-            <h2 className="text-lg font-black text-slate-900">Подтверждение заказа</h2>
-            <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">
-              Мы отправили 4-значный проверочный код в ваш Telegram <strong>@VerificationCodes</strong>
-            </p>
-
-            {/* 4 Digit Boxes */}
-            <div className="flex justify-center gap-3 mb-4">
-              {[0, 1, 2, 3].map((idx) => (
-                <input
-                  key={idx}
-                  ref={codeInputRefs[idx]}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={inputCode[idx]}
-                  onChange={(e) => handleCodeDigitChange(idx, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(idx, e)}
-                  className={`w-13 h-14 text-center text-2xl font-black rounded-2xl border-2 transition-all ${
-                    codeError 
-                      ? 'border-rose-500 bg-rose-50/50 text-rose-600' 
-                      : inputCode[idx] 
-                        ? 'border-blue-600 bg-blue-50/40 text-blue-900' 
-                        : 'border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-500 focus:bg-white'
-                  }`}
-                />
-              ))}
-            </div>
-
-            {codeError && (
-              <p className="text-xs font-semibold text-rose-600 mb-3 animate-shake">
-                {codeError}
-              </p>
-            )}
-
-            {/* Countdown / Resend */}
-            <div className="text-xs text-slate-400 mb-5">
-              {resendTimer > 0 ? (
-                <span>Отправить код повторно через <strong className="text-slate-600">{resendTimer} с</strong></span>
-              ) : (
-                <button
-                  onClick={handleResendCode}
-                  className="text-blue-600 font-bold hover:underline inline-flex items-center gap-1"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Отправить код повторно</span>
-                </button>
-              )}
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setIsVerifyingCode(false);
-                  setShowNotificationToast(false);
-                }}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={() => verifyAndFinalizeOrder(inputCode.join(''))}
-                disabled={inputCode.some(d => !d)}
-                className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${
-                  inputCode.every(d => d) 
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/30' 
-                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                }`}
-              >
-                Подтвердить
+                <span>Подтвердить заказ ({totalPrice} ₽)</span>
               </button>
             </div>
           </div>
