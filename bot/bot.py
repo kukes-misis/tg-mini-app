@@ -532,8 +532,8 @@ async def handle_webapp_data(message: types.Message):
             ]
         )
 
-        # Send alert directly to admin's chat_id (guaranteed default: 5847598677)
-        admin_chat_id = db.get_setting("admin_chat_id") or "5847598677"
+        # Send alert directly to admin's chat_id (sole admin @qqeaux)
+        admin_chat_id = db.get_setting("admin_chat_id")
         if admin_chat_id:
             try:
                 await bot.send_message(
@@ -568,7 +568,7 @@ async def handle_support(message: types.Message):
                 InlineKeyboardButton(text="💼 Заказать разработку бота / Mini App", callback_data="support_dev")
             ],
             [
-                InlineKeyboardButton(text="👨‍💻 Написать менеджеру", url="https://t.me/eccdk"),
+                InlineKeyboardButton(text="👨‍💻 Написать менеджеру", url="https://t.me/qqeaux"),
                 InlineKeyboardButton(text="❓ Частые вопросы (FAQ)", callback_data="support_faq")
             ]
         ]
@@ -588,11 +588,11 @@ async def cb_support_dev(callback: types.CallbackQuery):
         "— Авто-переключение тем (день/ночь) и валидация данных\n\n"
         "⏱ *Срок реализации:* 3–5 дней\n"
         "💰 *Стоимость:* от 25 000 руб.\n\n"
-        "👉 Для заказа и обсуждения напишите разработчику: @eccdk"
+        "👉 Для заказа и обсуждения напишите разработчику: @qqeaux"
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💬 Написать разработчику (@eccdk)", url="https://t.me/eccdk")],
+            [InlineKeyboardButton(text="💬 Написать разработчику (@qqeaux)", url="https://t.me/qqeaux")],
             [InlineKeyboardButton(text="⬅️ Назад в поддержку", callback_data="support_back")]
         ]
     )
@@ -636,7 +636,7 @@ async def cb_support_back(callback: types.CallbackQuery):
                 InlineKeyboardButton(text="💼 Заказать разработку бота / Mini App", callback_data="support_dev")
             ],
             [
-                InlineKeyboardButton(text="👨‍💻 Написать менеджеру", url="https://t.me/eccdk"),
+                InlineKeyboardButton(text="👨‍💻 Написать менеджеру", url="https://t.me/qqeaux"),
                 InlineKeyboardButton(text="❓ Частые вопросы (FAQ)", callback_data="support_faq")
             ]
         ]

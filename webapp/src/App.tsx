@@ -210,14 +210,11 @@ export function App() {
     localStorage.setItem('tg_store_orders', JSON.stringify(orders));
   }, [orders]);
 
-  // Check admin: @qqeaux or @eccdk or ID 5847598677
+  // Check admin: strictly and ONLY @qqeaux forever
   const isActualAdmin = useMemo(() => {
     const tgUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username?.toLowerCase() || '';
-    const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-    if (tgUsername === 'qqeaux' || tgUsername === 'eccdk' || tgId === 5847598677) return true;
-    if (secretTaps >= 5) return true;
-    return false;
-  }, [secretTaps]);
+    return tgUsername === 'qqeaux';
+  }, []);
 
   // Telegram WebApp initialization
   useEffect(() => {
@@ -436,7 +433,7 @@ export function App() {
               </div>
               <div>
                 <div className="text-xs text-amber-400 font-bold uppercase tracking-wider">Панель управления</div>
-                <div className="text-sm font-extrabold text-white">Администратор @eccdk</div>
+                <div className="text-sm font-extrabold text-white">Администратор @qqeaux</div>
               </div>
             </div>
             <button
@@ -800,7 +797,7 @@ export function App() {
                   setIsAdminMode(true);
                 }}
                 className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-slate-950 px-2.5 py-1.5 rounded-full text-xs font-extrabold shadow-sm transition-transform active:scale-95 animate-pulse"
-                title="Панель администратора @eccdk"
+                title="Панель администратора @qqeaux"
               >
                 <span>👑 Админка</span>
               </button>
