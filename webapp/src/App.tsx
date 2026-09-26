@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ShoppingBag, 
   Search, 
@@ -20,10 +20,9 @@ import {
   Check,
   TrendingUp,
   ArrowLeft,
-  KeyRound,
   ShieldAlert,
-  BellRing,
-  RefreshCw
+  Sun,
+  Moon
 } from 'lucide-react';
 import { CATEGORIES, PRODUCTS as INITIAL_PRODUCTS } from './data/products';
 import { Product, CartItem, OrderData, OrderStatus } from './types';
@@ -46,18 +45,29 @@ function formatRussianPhone(raw: string): string {
   return `+7 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
 }
 
-// Validation helpers
+// Phone Anti-Fool Validation
 function isValidPhone(phone: string): boolean {
   const digits = phone.replace(/\D/g, '');
-  // Must be 11 digits and start with 79... (Russian mobile numbers)
-  return digits.length === 11 && digits.startsWith('79');
+  // Must be 11 digits and start with 79...
+  if (digits.length !== 11 || !digits.startsWith('79')) return false;
+
+  const rest = digits.slice(2);
+  const uniqueDigits = new Set(rest);
+  // Rejects repeating fake numbers like 79999999999, 79000000000, 79111111111
+  if (uniqueDigits.size <= 2) return false;
+
+  // Rejects sequential patterns
+  if (rest === '123456789' || rest === '987654321' || rest === '012345678' || rest === '111222333') {
+    return false;
+  }
+
+  return true;
 }
 
 function isValidName(name: string): boolean {
   const trimmed = name.trim();
   const words = trimmed.split(/\s+/);
   if (words.length < 2) return false;
-  // Only letters and hyphens
   const nameRegex = /^[A-Za-zА-Яа-яЁё\-]+$/;
   return words.every(w => w.length >= 2 && nameRegex.test(w));
 }
@@ -69,8 +79,25 @@ function isValidEmail(email: string): boolean {
 
 function isValidAddress(address: string): boolean {
   const trimmed = address.trim();
-  // At least 8 chars and contains at least one digit (house number)
   return trimmed.length >= 8 && /\d/.test(trimmed);
+}
+
+// Moscow Time & Theme Helper (UTC+3)
+// 07:00 to 19:59 MSK -> Daytime (Light)
+// 20:00 to 06:59 MSK -> Nighttime (Dark)
+function getMoscowTimeInfo(): { hour: number; timeStr: string; isDaytime: boolean } {
+  try {
+    const now = new Date();
+    const msk = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Moscow" }));
+    const hour = msk.getHours();
+    const minutes = String(msk.getMinutes()).padStart(2, '0');
+    const isDaytime = hour >= 7 && hour < 20;
+    return { hour, timeStr: `${String(hour).padStart(2, '0')}:${minutes}`, isDaytime };
+  } catch {
+    const utcHours = new Date().getUTCHours();
+    const hour = (utcHours + 3) % 24;
+    return { hour, timeStr: `${String(hour).padStart(2, '0')}:00`, isDaytime: hour >= 7 && hour < 20 };
+  }
 }
 
 // Initial demo orders for admin
@@ -115,6 +142,19 @@ const INITIAL_DEMO_ORDERS: OrderData[] = [
 ];
 
 export function App() {
+  // Moscow Time & Theme state (auto 07:00–20:00 MSK)
+  const [moscowInfo, setMoscowInfo] = useState(() => getMoscowTimeInfo());
+  const [isDarkTheme, setIsDarkTheme] = useState(() => !getMoscowTimeInfo().isDaytime);
+
+  // Update Moscow time every 30 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const info = getMoscowTimeInfo();
+      setMoscowInfo(info);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Products state (persisted in localStorage)
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('tg_store_products');
@@ -192,7 +232,6 @@ export function App() {
     }
   }, []);
 
-
   const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'success' | 'error') => {
     if (window.Telegram?.WebApp?.HapticFeedback) {
       if (type === 'success' || type === 'error') {
@@ -262,7 +301,7 @@ export function App() {
     }
   };
 
-  // Direct order submit (without verification code)
+  // Direct order submit with Anti-Fool validation
   const handleSubmitOrder = (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
@@ -314,7 +353,7 @@ export function App() {
       createdAt: 'Только что'
     };
 
-    // Send payload to Telegram Bot
+    // Send payload to Telegram Bot (which sends receipt to user & push alert to admin)
     if (window.Telegram?.WebApp?.sendData) {
       window.Telegram.WebApp.sendData(JSON.stringify(newOrder));
     }
@@ -397,7 +436,7 @@ export function App() {
               </div>
               <div>
                 <div className="text-xs text-amber-400 font-bold uppercase tracking-wider">Панель управления</div>
-                <div className="text-sm font-extrabold text-white">Администратор @qqeaux</div>
+                <div className="text-sm font-extrabold text-white">Администратор @eccdk</div>
               </div>
             </div>
             <button
@@ -519,7 +558,7 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* Verified Customer info with email and phone */}
+                  {/* Customer info */}
                   <div className="bg-slate-900/80 rounded-xl p-2.5 text-xs space-y-1.5 border border-slate-800">
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400">ФИО клиента:</span>
@@ -710,20 +749,25 @@ export function App() {
 
   // ================= CLIENT STORE VIEW =================
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-28">
-
+    <div className={`min-h-screen transition-colors duration-300 pb-28 ${
+      isDarkTheme ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+    }`}>
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 pt-3 pb-3 shadow-xs">
+      <header className={`sticky top-0 z-20 backdrop-blur-md border-b px-4 pt-3 pb-3 shadow-xs transition-colors duration-300 ${
+        isDarkTheme 
+          ? 'bg-slate-900/95 border-slate-800' 
+          : 'bg-white/95 border-slate-100'
+      }`}>
         <div className="flex items-center justify-between mb-2">
           <div>
             <div 
               onClick={() => setSecretTaps(prev => prev + 1)} 
-              className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 uppercase tracking-wider cursor-pointer"
+              className="flex items-center gap-1.5 text-xs font-semibold text-blue-500 uppercase tracking-wider cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>Gourmet & Craft</span>
             </div>
-            <h1 className="text-xl font-extrabold text-slate-900">
+            <h1 className={`text-xl font-extrabold ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
               {window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name 
                 ? `Привет, ${window.Telegram.WebApp.initDataUnsafe.user.first_name}!` 
                 : 'Вкусная Доставка'}
@@ -731,6 +775,24 @@ export function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Auto Moscow Time Theme Switcher Pill */}
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                setIsDarkTheme(prev => !prev);
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                isDarkTheme
+                  ? 'bg-slate-800 text-amber-300 border-slate-700 hover:bg-slate-700'
+                  : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+              }`}
+              title="Тема по времени Москвы (07:00–20:00 светлая, иначе темная)"
+            >
+              {isDarkTheme ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5 text-amber-500" />}
+              <span>{moscowInfo.timeStr} МСК</span>
+            </button>
+
+            {/* Admin Pill */}
             {isActualAdmin && (
               <button
                 onClick={() => {
@@ -738,13 +800,15 @@ export function App() {
                   setIsAdminMode(true);
                 }}
                 className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-slate-950 px-2.5 py-1.5 rounded-full text-xs font-extrabold shadow-sm transition-transform active:scale-95 animate-pulse"
-                title="Панель администратора @qqeaux"
+                title="Панель администратора @eccdk"
               >
                 <span>👑 Админка</span>
               </button>
             )}
 
-            <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-medium">
+            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium ${
+              isDarkTheme ? 'bg-slate-800 text-blue-400' : 'bg-blue-50 text-blue-700'
+            }`}>
               <Clock className="w-3.5 h-3.5" />
               <span>30–45 мин</span>
             </div>
@@ -759,12 +823,16 @@ export function App() {
             placeholder="Поиск по меню..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-100 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-400"
+            className={`w-full pl-9 pr-4 py-2 rounded-xl text-sm focus:outline-hidden transition-all ${
+              isDarkTheme 
+                ? 'bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500' 
+                : 'bg-slate-100 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20'
+            }`}
           />
           {searchQuery && (
             <button 
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200"
             >
               <X className="w-4 h-4" />
             </button>
@@ -785,7 +853,9 @@ export function App() {
                 className={`whitespace-nowrap px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
                   isActive 
                     ? 'bg-blue-600 text-white shadow-xs' 
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    : isDarkTheme
+                      ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 {cat.name}
@@ -805,11 +875,15 @@ export function App() {
             return (
               <div 
                 key={product.id}
-                className={`bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-xs flex flex-col justify-between transition-transform ${
+                className={`rounded-2xl overflow-hidden border shadow-xs flex flex-col justify-between transition-all ${
+                  isDarkTheme 
+                    ? 'bg-slate-900 border-slate-800' 
+                    : 'bg-white border-slate-100'
+                } ${
                   !isAvailable ? 'opacity-60 grayscale-[40%]' : 'active:scale-[0.99]'
                 }`}
               >
-                <div className="relative aspect-4/3 overflow-hidden bg-slate-100">
+                <div className="relative aspect-4/3 overflow-hidden bg-slate-800">
                   <img 
                     src={product.image} 
                     alt={product.name} 
@@ -827,7 +901,7 @@ export function App() {
                     </span>
                   )}
                   {!isAvailable && (
-                    <div className="absolute inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center p-2 text-center">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-2xs flex items-center justify-center p-2 text-center">
                       <span className="bg-rose-600 text-white text-[10px] font-black px-2 py-1 rounded-md">
                         В стоп-листе
                       </span>
@@ -837,21 +911,29 @@ export function App() {
 
                 <div className="p-3 flex flex-col flex-1 justify-between">
                   <div>
-                    <h3 className="font-bold text-slate-900 text-sm leading-snug line-clamp-1">
+                    <h3 className={`font-bold text-sm leading-snug line-clamp-1 ${
+                      isDarkTheme ? 'text-white' : 'text-slate-900'
+                    }`}>
                       {product.name}
                     </h3>
-                    <p className="text-slate-500 text-[11px] line-clamp-2 mt-1 leading-relaxed">
+                    <p className={`text-[11px] line-clamp-2 mt-1 leading-relaxed ${
+                      isDarkTheme ? 'text-slate-400' : 'text-slate-500'
+                    }`}>
                       {product.description}
                     </p>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-50">
+                  <div className={`mt-3 flex items-center justify-between pt-2 border-t ${
+                    isDarkTheme ? 'border-slate-800' : 'border-slate-50'
+                  }`}>
                     <div>
-                      <span className="font-extrabold text-slate-900 text-sm">
+                      <span className={`font-extrabold text-sm ${
+                        isDarkTheme ? 'text-amber-400' : 'text-slate-900'
+                      }`}>
                         {product.price} ₽
                       </span>
                       {product.oldPrice && (
-                        <span className="block text-[10px] text-slate-400 line-through">
+                        <span className="block text-[10px] text-slate-500 line-through">
                           {product.oldPrice} ₽
                         </span>
                       )}
@@ -867,19 +949,23 @@ export function App() {
                         <Plus className="w-4 h-4" />
                       </button>
                     ) : (
-                      <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-xl p-0.5">
+                      <div className={`flex items-center gap-1.5 border rounded-xl p-0.5 ${
+                        isDarkTheme 
+                          ? 'bg-slate-800 border-slate-700 text-blue-400' 
+                          : 'bg-blue-50 border-blue-200 text-blue-900'
+                      }`}>
                         <button
                           onClick={() => removeFromCart(product.id)}
-                          className="w-6 h-6 flex items-center justify-center text-blue-700 hover:bg-blue-100 rounded-lg transition-colors active:scale-95"
+                          className="w-6 h-6 flex items-center justify-center hover:opacity-80 rounded-lg transition-colors active:scale-95"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-xs font-bold text-blue-900 w-4 text-center">
+                        <span className="text-xs font-bold w-4 text-center">
                           {qty}
                         </span>
                         <button
                           onClick={() => addToCart(product.id)}
-                          className="w-6 h-6 flex items-center justify-center text-blue-700 hover:bg-blue-100 rounded-lg transition-colors active:scale-95"
+                          className="w-6 h-6 flex items-center justify-center hover:opacity-80 rounded-lg transition-colors active:scale-95"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -925,17 +1011,25 @@ export function App() {
 
       {/* Cart & Checkout Drawer Modal */}
       {isCartOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white rounded-t-3xl max-h-[92vh] flex flex-col animate-in slide-in-from-bottom duration-250">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs">
+          <div className={`w-full max-w-md rounded-t-3xl max-h-[92vh] flex flex-col animate-in slide-in-from-bottom duration-250 border-t ${
+            isDarkTheme ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-slate-100'
+          }`}>
             {/* Drawer Header */}
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+            <div className={`p-4 border-b flex items-center justify-between ${
+              isDarkTheme ? 'border-slate-800' : 'border-slate-100'
+            }`}>
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Оформление заказа</h2>
-                <p className="text-xs text-slate-500">{totalQuantity} поз. на сумму {totalPrice} ₽</p>
+                <h2 className="text-lg font-bold">Оформление заказа</h2>
+                <p className={`text-xs ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {totalQuantity} поз. на сумму {totalPrice} ₽
+                </p>
               </div>
               <button 
                 onClick={() => setIsCartOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800"
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  isDarkTheme ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-800'
+                }`}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -947,7 +1041,9 @@ export function App() {
               <div className="space-y-2.5">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ваш заказ</h3>
                 {cartItems.map(item => (
-                  <div key={item.product.id} className="flex items-center justify-between py-2 border-b border-slate-50">
+                  <div key={item.product.id} className={`flex items-center justify-between py-2 border-b ${
+                    isDarkTheme ? 'border-slate-800' : 'border-slate-50'
+                  }`}>
                     <div className="flex items-center gap-3">
                       <img 
                         src={item.product.image} 
@@ -955,21 +1051,23 @@ export function App() {
                         className="w-12 h-12 object-cover rounded-xl"
                       />
                       <div>
-                        <div className="font-bold text-sm text-slate-900 line-clamp-1">{item.product.name}</div>
-                        <div className="text-xs text-blue-600 font-semibold">{item.product.price} ₽ × {item.quantity} = {item.product.price * item.quantity} ₽</div>
+                        <div className="font-bold text-sm line-clamp-1">{item.product.name}</div>
+                        <div className="text-xs text-blue-500 font-semibold">{item.product.price} ₽ × {item.quantity} = {item.product.price * item.quantity} ₽</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 bg-slate-100 rounded-lg p-0.5">
+                    <div className={`flex items-center gap-1.5 rounded-lg p-0.5 ${
+                      isDarkTheme ? 'bg-slate-800' : 'bg-slate-100'
+                    }`}>
                       <button 
                         onClick={() => removeFromCart(item.product.id)}
-                        className="w-6 h-6 flex items-center justify-center text-slate-700"
+                        className="w-6 h-6 flex items-center justify-center opacity-70 hover:opacity-100"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
                       <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
                       <button 
                         onClick={() => addToCart(item.product.id)}
-                        className="w-6 h-6 flex items-center justify-center text-slate-700"
+                        className="w-6 h-6 flex items-center justify-center opacity-70 hover:opacity-100"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -982,7 +1080,9 @@ export function App() {
               <form id="order-form" onSubmit={handleSubmitOrder} className="space-y-3.5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Данные получателя</h3>
-                  <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    isDarkTheme ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/60' : 'bg-emerald-50 text-emerald-600'
+                  }`}>
                     🛡️ Проверка данных
                   </span>
                 </div>
@@ -999,13 +1099,13 @@ export function App() {
                         setCustomerName(e.target.value);
                         if (errors.name) setErrors(prev => ({ ...prev, name: '' }));
                       }}
-                      className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-hidden transition-all ${
-                        errors.name ? 'border-rose-500 bg-rose-50/30' : 'border-slate-200 focus:border-blue-500'
-                      }`}
+                      className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-sm focus:outline-hidden transition-all ${
+                        isDarkTheme ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400'
+                      } ${errors.name ? 'border-rose-500 bg-rose-50/20' : 'border focus:border-blue-500'}`}
                     />
                   </div>
                   {errors.name && (
-                    <p className="text-[11px] text-rose-600 mt-1 pl-1 flex items-center gap-1">
+                    <p className="text-[11px] text-rose-500 mt-1 pl-1 flex items-center gap-1">
                       <ShieldAlert className="w-3 h-3 shrink-0" />
                       <span>{errors.name}</span>
                     </p>
@@ -1021,13 +1121,13 @@ export function App() {
                       placeholder="+7 (9XX) XXX-XX-XX"
                       value={phone}
                       onChange={handlePhoneChange}
-                      className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-hidden transition-all ${
-                        errors.phone ? 'border-rose-500 bg-rose-50/30' : 'border-slate-200 focus:border-blue-500'
-                      }`}
+                      className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-sm focus:outline-hidden transition-all ${
+                        isDarkTheme ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400'
+                      } ${errors.phone ? 'border-rose-500 bg-rose-50/20' : 'border focus:border-blue-500'}`}
                     />
                   </div>
                   {errors.phone && (
-                    <p className="text-[11px] text-rose-600 mt-1 pl-1 flex items-center gap-1">
+                    <p className="text-[11px] text-rose-500 mt-1 pl-1 flex items-center gap-1">
                       <ShieldAlert className="w-3 h-3 shrink-0" />
                       <span>{errors.phone}</span>
                     </p>
@@ -1046,13 +1146,13 @@ export function App() {
                         setEmail(e.target.value);
                         if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
                       }}
-                      className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-hidden transition-all ${
-                        errors.email ? 'border-rose-500 bg-rose-50/30' : 'border-slate-200 focus:border-blue-500'
-                      }`}
+                      className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-sm focus:outline-hidden transition-all ${
+                        isDarkTheme ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400'
+                      } ${errors.email ? 'border-rose-500 bg-rose-50/20' : 'border focus:border-blue-500'}`}
                     />
                   </div>
                   {errors.email && (
-                    <p className="text-[11px] text-rose-600 mt-1 pl-1 flex items-center gap-1">
+                    <p className="text-[11px] text-rose-500 mt-1 pl-1 flex items-center gap-1">
                       <ShieldAlert className="w-3 h-3 shrink-0" />
                       <span>{errors.email}</span>
                     </p>
@@ -1071,13 +1171,13 @@ export function App() {
                         setAddress(e.target.value);
                         if (errors.address) setErrors(prev => ({ ...prev, address: '' }));
                       }}
-                      className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-hidden transition-all ${
-                        errors.address ? 'border-rose-500 bg-rose-50/30' : 'border-slate-200 focus:border-blue-500'
-                      }`}
+                      className={`w-full pl-9 pr-3 py-2.5 rounded-xl text-sm focus:outline-hidden transition-all ${
+                        isDarkTheme ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400'
+                      } ${errors.address ? 'border-rose-500 bg-rose-50/20' : 'border focus:border-blue-500'}`}
                     />
                   </div>
                   {errors.address && (
-                    <p className="text-[11px] text-rose-600 mt-1 pl-1 flex items-center gap-1">
+                    <p className="text-[11px] text-rose-500 mt-1 pl-1 flex items-center gap-1">
                       <ShieldAlert className="w-3 h-3 shrink-0" />
                       <span>{errors.address}</span>
                     </p>
@@ -1089,7 +1189,9 @@ export function App() {
                   placeholder="Комментарий к заказу (код домофона, этаж)"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:border-blue-500"
+                  className={`w-full px-3 py-2.5 rounded-xl text-sm focus:outline-hidden border ${
+                    isDarkTheme ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500'
+                  }`}
                 />
 
                 {/* Payment Selection */}
@@ -1100,11 +1202,11 @@ export function App() {
                     onClick={() => setPaymentMethod('online')}
                     className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all ${
                       paymentMethod === 'online'
-                        ? 'border-blue-600 bg-blue-50/50 text-blue-900 font-semibold'
-                        : 'border-slate-200 bg-white text-slate-600'
+                        ? 'border-blue-500 bg-blue-500/10 text-blue-400 font-semibold'
+                        : isDarkTheme ? 'border-slate-800 bg-slate-800/60 text-slate-400' : 'border-slate-200 bg-white text-slate-600'
                     }`}
                   >
-                    <CreditCard className="w-4 h-4 text-blue-600" />
+                    <CreditCard className="w-4 h-4 text-blue-500" />
                     <span className="text-xs">Онлайн (ЮKassa / СБП)</span>
                   </button>
                   <button
@@ -1112,11 +1214,11 @@ export function App() {
                     onClick={() => setPaymentMethod('cash')}
                     className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all ${
                       paymentMethod === 'cash'
-                        ? 'border-blue-600 bg-blue-50/50 text-blue-900 font-semibold'
-                        : 'border-slate-200 bg-white text-slate-600'
+                        ? 'border-blue-500 bg-blue-500/10 text-blue-400 font-semibold'
+                        : isDarkTheme ? 'border-slate-800 bg-slate-800/60 text-slate-400' : 'border-slate-200 bg-white text-slate-600'
                     }`}
                   >
-                    <Banknote className="w-4 h-4 text-emerald-600" />
+                    <Banknote className="w-4 h-4 text-emerald-500" />
                     <span className="text-xs">При получении</span>
                   </button>
                 </div>
@@ -1124,15 +1226,19 @@ export function App() {
             </div>
 
             {/* Drawer Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50">
+            <div className={`p-4 border-t ${
+              isDarkTheme ? 'border-slate-800 bg-slate-950' : 'border-slate-100 bg-slate-50'
+            }`}>
               <div className="flex justify-between items-center mb-3">
-                <span className="text-sm font-medium text-slate-500">Итого к оплате:</span>
-                <span className="text-lg font-black text-slate-900">{totalPrice} ₽</span>
+                <span className="text-sm font-medium text-slate-400">Итого к оплате:</span>
+                <span className={`text-lg font-black ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
+                  {totalPrice} ₽
+                </span>
               </div>
               <button
                 type="submit"
                 form="order-form"
-                className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-3.5 rounded-2xl font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-3.5 rounded-2xl font-bold text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Подтвердить заказ ({totalPrice} ₽)</span>
               </button>
@@ -1143,36 +1249,40 @@ export function App() {
 
       {/* Success Modal */}
       {orderSuccess && (
-        <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-white rounded-3xl p-6 text-center shadow-xl animate-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
+          <div className={`w-full max-w-sm rounded-3xl p-6 text-center shadow-xl animate-in zoom-in-95 duration-200 border ${
+            isDarkTheme ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-slate-100'
+          }`}>
+            <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/30">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-            <h2 className="text-xl font-black text-slate-900 mb-1">Заказ #{orderSuccess.orderNumber} подтверждён!</h2>
-            <p className="text-xs text-slate-500 mb-4">
-              Номер телефона верифицирован. Детали заказа и электронный чек отправлены в бот.
+            <h2 className="text-xl font-black mb-1">Заказ #{orderSuccess.orderNumber} подтверждён!</h2>
+            <p className="text-xs text-slate-400 mb-4">
+              Детали заказа и электронный чек отправлены в чат с ботом.
             </p>
 
-            <div className="bg-slate-50 rounded-2xl p-3.5 text-left text-xs space-y-1.5 mb-5 border border-slate-100">
+            <div className={`rounded-2xl p-3.5 text-left text-xs space-y-1.5 mb-5 border ${
+              isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-100'
+            }`}>
               <div className="flex justify-between">
                 <span className="text-slate-400">Получатель:</span>
-                <span className="font-semibold text-slate-800">{orderSuccess.customerName}</span>
+                <span className="font-semibold">{orderSuccess.customerName}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Телефон:</span>
-                <span className="font-medium text-slate-800">{orderSuccess.phone}</span>
+                <span className="font-medium text-blue-400">{orderSuccess.phone}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Email:</span>
-                <span className="font-medium text-slate-800">{orderSuccess.email}</span>
+                <span className="font-medium">{orderSuccess.email}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Сумма:</span>
-                <span className="font-bold text-blue-600">{orderSuccess.totalPrice} ₽</span>
+                <span className="font-bold text-amber-400">{orderSuccess.totalPrice} ₽</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Адрес:</span>
-                <span className="font-medium text-slate-800 truncate max-w-[180px]">{orderSuccess.address}</span>
+                <span className="font-medium truncate max-w-[180px]">{orderSuccess.address}</span>
               </div>
             </div>
 
@@ -1183,7 +1293,7 @@ export function App() {
                   window.Telegram.WebApp.close();
                 }
               }}
-              className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-xs hover:bg-slate-800 transition-colors"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-xs transition-colors"
             >
               Закрыть
             </button>

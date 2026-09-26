@@ -40,7 +40,7 @@ def get_keyboard(username: str | None, user_id: int | None):
         buttons.append([KeyboardButton(text="👑 Панель управления (Админ)")])
 
     buttons.append([
-        KeyboardButton(text="💼 Заказать разработку"),
+        KeyboardButton(text="💬 Поддержка"),
         KeyboardButton(text="ℹ️ О проекте")
     ])
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
@@ -532,8 +532,8 @@ async def handle_webapp_data(message: types.Message):
             ]
         )
 
-        # Send alert directly to @qqeaux's stored chat_id
-        admin_chat_id = db.get_setting("admin_chat_id")
+        # Send alert directly to admin's chat_id (guaranteed default: 5847598677)
+        admin_chat_id = db.get_setting("admin_chat_id") or "5847598677"
         if admin_chat_id:
             try:
                 await bot.send_message(
@@ -544,31 +544,110 @@ async def handle_webapp_data(message: types.Message):
                 )
             except Exception as e:
                 logging.error(f"Failed to send admin push alert to {admin_chat_id}: {e}")
-        elif is_admin(username, user_id):
-            # If current sender is admin, send to current
-            await message.answer(f"👑 *Оповещение администратора:* \n\n{admin_alert}", reply_markup=admin_kb, parse_mode="Markdown")
 
     except Exception as e:
         logging.error(f"Error parsing web_app_data: {e}", exc_info=True)
         await message.answer(f"✅ Заказ принят! Данные: {raw_data}")
 
-# Standard marketing handlers
+# --- SUPPORT MENU WITH DEV ORDER OPTION ---
+
+@dp.message(F.text == "💬 Поддержка")
+@dp.message(Command("support"))
+async def handle_support(message: types.Message):
+    text = (
+        "💬 *Служба заботы и поддержки клиентов*\n\n"
+        "Мы на связи 24/7 и готовы помочь по любым вопросам:\n"
+        "• Уточнить детали или статус вашего заказа\n"
+        "• Вопросы по оплате, чекам и возвратам\n"
+        "• Заказ разработки бота / интернет-магазина для вашего бизнеса\n\n"
+        "Выберите интересующий пункт ниже 👇"
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="💼 Заказать разработку бота / Mini App", callback_data="support_dev")
+            ],
+            [
+                InlineKeyboardButton(text="👨‍💻 Написать менеджеру", url="https://t.me/eccdk"),
+                InlineKeyboardButton(text="❓ Частые вопросы (FAQ)", callback_data="support_faq")
+            ]
+        ]
+    )
+    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+
+@dp.callback_query(F.data == "support_dev")
+async def cb_support_dev(callback: types.CallbackQuery):
+    await callback.answer()
+    dev_text = (
+        "💼 *Разработка Telegram Mini App под ключ:*\n\n"
+        "Создаем современные интерактивные боты и веб-приложения для бизнеса:\n"
+        "— Каталоги товаров и услуг\n"
+        "— Доставка еды и бронирование\n"
+        "— Закрытая панель администратора для владельца\n"
+        "— Прием платежей (ЮKassa / СБП)\n"
+        "— Авто-переключение тем (день/ночь) и валидация данных\n\n"
+        "⏱ *Срок реализации:* 3–5 дней\n"
+        "💰 *Стоимость:* от 25 000 руб.\n\n"
+        "👉 Для заказа и обсуждения напишите разработчику: @eccdk"
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💬 Написать разработчику (@eccdk)", url="https://t.me/eccdk")],
+            [InlineKeyboardButton(text="⬅️ Назад в поддержку", callback_data="support_back")]
+        ]
+    )
+    if callback.message:
+        await callback.message.edit_text(dev_text, reply_markup=kb, parse_mode="Markdown")
+
+@dp.callback_query(F.data == "support_faq")
+async def cb_support_faq(callback: types.CallbackQuery):
+    await callback.answer()
+    faq_text = (
+        "❓ *Частые вопросы (FAQ):*\n\n"
+        "1. *Как отследить статус заказа?*\n"
+        "После оформления бот автоматически присылает уведомления на каждом этапе (готовка, выезд курьера, доставка).\n\n"
+        "2. *Как работает оплата?*\n"
+        "Оплата производится официально через ЮKassa (карты, СБП) или при получении курьеру.\n\n"
+        "3. *Сколько занимает доставка?*\n"
+        "Среднее время приготовления и доставки по городу: 30–45 минут."
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад в поддержку", callback_data="support_back")]
+        ]
+    )
+    if callback.message:
+        await callback.message.edit_text(faq_text, reply_markup=kb, parse_mode="Markdown")
+
+@dp.callback_query(F.data == "support_back")
+async def cb_support_back(callback: types.CallbackQuery):
+    await callback.answer()
+    text = (
+        "💬 *Служба заботы и поддержки клиентов*\n\n"
+        "Мы на связи 24/7 и готовы помочь по любым вопросам:\n"
+        "• Уточнить детали или статус вашего заказа\n"
+        "• Вопросы по оплате, чекам и возвратам\n"
+        "• Заказ разработки бота / интернет-магазина для вашего бизнеса\n\n"
+        "Выберите интересующий пункт ниже 👇"
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="💼 Заказать разработку бота / Mini App", callback_data="support_dev")
+            ],
+            [
+                InlineKeyboardButton(text="👨‍💻 Написать менеджеру", url="https://t.me/eccdk"),
+                InlineKeyboardButton(text="❓ Частые вопросы (FAQ)", callback_data="support_faq")
+            ]
+        ]
+    )
+    if callback.message:
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+
+# Marketing handlers
 @dp.message(F.text == "💼 Заказать разработку")
 async def handle_order_dev(message: types.Message):
-    info_text = (
-        "💼 *Разработка Telegram Mini App под ключ:*\n\n"
-        "Разрабатываем современные интерактивные боты и веб-приложения для вашего бизнеса:\n"
-        "— Каталоги товаров и услуг\n"
-        "— Доставка еды и онлайн-запись\n"
-        "— Панель администратора с управлением заказами и ценами\n"
-        "— Защита от спама и верификация заказов кодом\n"
-        "— Прием платежей (ЮKassa / СБП)\n"
-        "— Синхронизация с CRM и складом\n\n"
-        "⏱ *Срок реализации:* 3–7 дней\n"
-        "💰 *Стоимость:* от 25 000 руб.\n\n"
-        "Для заказа напишите разработчику: @qqeaux"
-    )
-    await message.answer(info_text, parse_mode="Markdown")
+    await handle_support(message)
 
 @dp.message(F.text == "ℹ️ О проекте")
 async def handle_about(message: types.Message):
@@ -577,9 +656,9 @@ async def handle_about(message: types.Message):
         "Этот проект демонстрирует связку:\n"
         "1. *Frontend:* React 19 + TypeScript + Tailwind CSS (Telegram WebApp SDK)\n"
         "2. *Backend:* Python (Aiogram 3 Async Framework)\n"
-        "3. *Безопасность:* Проверка данных, авторизация заказов через @VerificationCodes\n"
+        "3. *Динамическая тема:* Авто-смена день/ночь по времени Москвы (07:00–20:00)\n"
         "4. *База данных:* SQLite (сохранение заказов, управление ценами и статусами)\n"
-        "5. *Push-уведомления:* Моментальные алерты о заказах для @qqeaux\n\n"
+        "5. *Push-уведомления:* Моментальные алерты о заказах для администратора\n\n"
         "Нажмите кнопку *«🛍️ Открыть магазин (Mini App)»* внизу экрана, чтобы протестировать функционал."
     )
     await message.answer(about_text, parse_mode="Markdown")
