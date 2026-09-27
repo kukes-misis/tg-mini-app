@@ -240,11 +240,10 @@ export function App() {
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editPriceVal, setEditPriceVal] = useState<string>('');
 
-  // Check admin identity: strictly and ONLY @qqeaux or ID 5847598677
+  // Check admin identity: strictly and ONLY @qqeaux
   const isActualAdmin = useMemo(() => {
     const tgUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username?.toLowerCase() || '';
-    const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-    return tgUsername === 'qqeaux' || tgId === 5847598677;
+    return tgUsername === 'qqeaux';
   }, []);
 
   // Update clock every minute

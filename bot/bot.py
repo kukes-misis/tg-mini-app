@@ -576,6 +576,11 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
     )
 
     admin_chat_id = db.get_setting("admin_chat_id") or os.getenv("ADMIN_CHAT_ID", DEFAULT_ADMIN_CHAT_ID)
+    admin_user = db.get_setting("admin_username")
+    # Strictly ensure notifications only go to @qqeaux
+    if admin_user and admin_user.lower() != "qqeaux":
+        admin_chat_id = None
+
     if admin_chat_id:
         try:
             await bot.send_message(
@@ -915,6 +920,11 @@ async def start_web_server():
 
 async def main():
     logging.info("🤖 Starting Telegram Bot with Admin Notifications & Anti-Fraud...")
+    # Clean up any lingering admin setting if it was not registered by @qqeaux
+    if db.get_setting("admin_username") != "qqeaux":
+        db.set_setting("admin_chat_id", "")
+        db.set_setting("admin_username", "")
+
     await start_web_server()
     await bot.delete_webhook(drop_pending_updates=True)
     try:
