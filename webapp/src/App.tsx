@@ -28,7 +28,11 @@ import {
   Utensils, 
   ExternalLink, 
   MessageCircle, 
-  ChevronRight 
+  ChevronRight,
+  ShieldCheck,
+  Timer,
+  Send,
+  AlertTriangle
 } from 'lucide-react';
 import { CATEGORIES, PRODUCTS as INITIAL_PRODUCTS } from './data/products';
 import { Product, CartItem, OrderData, OrderStatus } from './types';
@@ -178,14 +182,24 @@ function getMoscowTimeInfo(): { hour: number; timeStr: string; isDaytime: boolea
 }
 
 export function App() {
-  // Navigation tabs: 'menu' | 'orders' | 'support' | 'admin'
-  const [activeTab, setActiveTab] = useState<'menu' | 'orders' | 'support' | 'admin'>('menu');
-  
   // Theme state
   const [isDarkTheme, setIsDarkTheme] = useState<boolean>(() => {
     return !getMoscowTimeInfo().isDaytime;
   });
   const [moscowTimeStr, setMoscowTimeStr] = useState<string>(() => getMoscowTimeInfo().timeStr);
+
+  // Check admin identity: strictly and ONLY @qqeaux
+  const isActualAdmin = useMemo(() => {
+    const tgUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username?.toLowerCase() || '';
+    const urlParams = new URLSearchParams(window.location.search);
+    return tgUsername === 'qqeaux' || (urlParams.get('mode') === 'admin' && tgUsername === 'qqeaux');
+  }, []);
+
+  // Navigation tab for client: 'menu' | 'orders' | 'support'
+  const [clientTab, setClientTab] = useState<'menu' | 'orders' | 'support'>('menu');
+
+  // Navigation tab for admin: 'active' | 'history' | 'catalog' | 'stats'
+  const [adminTab, setAdminTab] = useState<'active' | 'history' | 'catalog' | 'stats'>('active');
 
   // Products & Categories
   const [products, setProducts] = useState<Product[]>(() => {
@@ -209,14 +223,14 @@ export function App() {
     }
   });
 
-  // Selected Product for Detail Modal
+  // Selected Product for Detail Modal (Client)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Cart
+  // Cart (Client only)
   const [cart, setCart] = useState<{ [productId: string]: number }>({});
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Orders — Clean state without demo orders
+  // Orders — Clean state from server
   const [orders, setOrders] = useState<OrderData[]>(() => {
     const saved = localStorage.getItem('tg_store_orders');
     if (saved) {
@@ -233,10 +247,7 @@ export function App() {
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
   const [isClearingOrders, setIsClearingOrders] = useState(false);
 
-  // Active highlighted order for tracking
-  const [activeTrackOrderNum, setActiveTrackOrderNum] = useState<string | null>(null);
-
-  // Form inputs
+  // Form inputs (Client checkout)
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -273,11 +284,9 @@ export function App() {
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editPriceVal, setEditPriceVal] = useState<string>('');
 
-  // Check admin identity: strictly and ONLY @qqeaux
-  const isActualAdmin = useMemo(() => {
-    const tgUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username?.toLowerCase() || '';
-    return tgUsername === 'qqeaux';
-  }, []);
+  // Admin order ETA and note editing state
+  const [orderEtaDrafts, setOrderEtaDrafts] = useState<{ [orderNum: string]: string }>({});
+  const [orderNoteDrafts, setOrderNoteDrafts] = useState<{ [orderNum: string]: string }>({});
 
   // Update clock every minute
   useEffect(() => {
@@ -300,18 +309,13 @@ export function App() {
     localStorage.setItem('tg_store_wishlist', JSON.stringify(wishlist));
   }, [wishlist]);
 
-  // Deep Link Handling from Telegram status notifications: ?tab=orders&order=1234
+  // Deep Link Handling
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const tabParam = urlParams.get('tab');
-      const orderParam = urlParams.get('order');
-
-      if (tabParam === 'orders' || orderParam) {
-        setActiveTab('orders');
-        if (orderParam) {
-          setActiveTrackOrderNum(orderParam);
-        }
+      if (tabParam === 'orders') {
+        setClientTab('orders');
       }
     } catch {
       // ignore
@@ -344,7 +348,6 @@ export function App() {
         if (res.ok && isMounted) {
           const serverOrders = await res.json();
           if (Array.isArray(serverOrders)) {
-            // Check for status changes to trigger sound & haptic
             let statusChanged = false;
             serverOrders.forEach((o: OrderData) => {
               if (o.orderNumber && o.status) {
@@ -371,7 +374,7 @@ export function App() {
     };
 
     fetchOrders();
-    const interval = setInterval(fetchOrders, 10000);
+    const interval = setInterval(fetchOrders, 8000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -447,7 +450,7 @@ export function App() {
     );
   };
 
-  // Cart operations
+  // Cart operations (Client)
   const addToCart = (productId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     triggerHaptic('light');
@@ -557,7 +560,7 @@ export function App() {
     }
   };
 
-  // Re-order in 1 click (with stop-list protection)
+  // Re-order in 1 click (Client)
   const handleRepeatOrder = (order: OrderData) => {
     triggerHaptic('medium');
     const newCart: { [id: string]: number } = {};
@@ -636,24 +639,38 @@ export function App() {
     }
   };
 
-  // Update Status from Admin panel
-  const handleAdminStatusChange = async (orderNum: string, newStatus: OrderStatus) => {
+  // Update Status and ETA from Admin Dispatch Panel
+  const handleAdminStatusUpdate = async (orderNum: string, newStatus: OrderStatus) => {
     triggerHaptic('medium');
     playSound('status');
-    setOrders(prev => prev.map(o => o.orderNumber === orderNum ? { ...o, status: newStatus } : o));
+
+    const eta = orderEtaDrafts[orderNum] || '';
+    const note = orderNoteDrafts[orderNum] || '';
+
+    setOrders(prev => prev.map(o => o.orderNumber === orderNum ? { 
+      ...o, 
+      status: newStatus, 
+      estimatedTime: eta || o.estimatedTime,
+      statusNote: note || o.statusNote
+    } : o));
 
     try {
       await fetch(`${API_BASE_URL}/api/orders/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderNumber: orderNum, status: newStatus })
+        body: JSON.stringify({ 
+          orderNumber: orderNum, 
+          status: newStatus,
+          estimatedTime: eta || undefined,
+          statusNote: note || undefined
+        })
       });
     } catch (e) {
       console.warn('Status update API error:', e);
     }
   };
 
-  // Submit Order
+  // Submit Order (Client only)
   const handleSubmitOrder = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -690,14 +707,12 @@ export function App() {
     triggerHaptic('success');
     playSound('success');
 
-    // Save recent address
     if (!savedAddresses.includes(address.trim())) {
       const updated = [address.trim(), ...savedAddresses.slice(0, 2)];
       setSavedAddresses(updated);
       localStorage.setItem('tg_store_addresses', JSON.stringify(updated));
     }
 
-    // 6-digit collision-resistant order number
     const orderNum = String(Math.floor(100000 + Math.random() * 900000));
     const newOrder: OrderData = {
       id: `ord-${orderNum}`,
@@ -726,7 +741,6 @@ export function App() {
       createdAt: 'Только что'
     };
 
-    // 1. Dual Delivery: Backend API
     try {
       fetch(`${API_BASE_URL}/api/orders`, {
         method: 'POST',
@@ -741,7 +755,6 @@ export function App() {
       console.warn('API fetch error:', e);
     }
 
-    // 2. Dual Delivery: Telegram Bot WebApp SDK
     if (window.Telegram?.WebApp?.sendData) {
       try {
         window.Telegram.WebApp.sendData(JSON.stringify(newOrder));
@@ -754,7 +767,6 @@ export function App() {
     setIsCartOpen(false);
     setCart({});
     setOrderSuccess(newOrder);
-    setActiveTrackOrderNum(orderNum);
   };
 
   // Toggle availability in admin
@@ -806,31 +818,586 @@ export function App() {
     }
   };
 
-  // Count active orders for badge
-  const activeOrdersCount = useMemo(() => {
-    return orders.filter(o => o.status === 'new' || o.status === 'cooking' || o.status === 'delivering').length;
+  const activeOrders = useMemo(() => {
+    return orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
   }, [orders]);
 
+  const historyOrders = useMemo(() => {
+    return orders.filter(o => o.status === 'completed' || o.status === 'cancelled');
+  }, [orders]);
+
+  // =========================================================================
+  // VIEW A: DEDICATED ADMIN DISPATCH PANEL (@qqeaux only)
+  // =========================================================================
+  if (isActualAdmin) {
+    return (
+      <div className={`min-h-screen flex flex-col font-sans transition-colors duration-150 select-none pb-20 ${
+        isDarkTheme ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+      }`}>
+
+        {/* ADMIN DISPATCH HEADER */}
+        <header className={`sticky top-0 z-30 px-4 py-3 border-b backdrop-blur-md transition-colors ${
+          isDarkTheme ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-xs'
+        }`}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className={`text-base font-extrabold tracking-tight ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
+                  Диспетчерская
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                  @qqeaux
+                </span>
+              </div>
+              <div className={`text-[11px] font-medium ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                Центр управления заказами и доставкой
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  setIsDarkTheme(!isDarkTheme);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer ${
+                  isDarkTheme 
+                    ? 'bg-slate-900 border-slate-700 text-slate-300' 
+                    : 'bg-slate-100 border-slate-200 text-slate-800'
+                }`}
+              >
+                {isDarkTheme ? <Moon className="w-3.5 h-3.5 text-amber-400" /> : <Sun className="w-3.5 h-3.5 text-amber-600" />}
+                <span>{moscowTimeStr}</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* ADMIN MAIN CONTENT */}
+        <main className="flex-1 max-w-xl mx-auto w-full px-3.5 pt-3">
+          
+          {/* TAB 1: ACTIVE ORDERS DISPATCH */}
+          {adminTab === 'active' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className={`text-sm font-bold tracking-tight ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                    Заказы в работе
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-600 text-white">
+                    {activeOrders.length}
+                  </span>
+                </div>
+                <span className={`text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Обновление в реальном времени
+                </span>
+              </div>
+
+              {activeOrders.length === 0 ? (
+                <div className={`text-center py-16 rounded-2xl border space-y-2 ${
+                  isDarkTheme ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500 shadow-xs'
+                }`}>
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                  <div className={`text-sm font-bold ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                    Все заказы выполнены!
+                  </div>
+                  <p className="text-xs">Новые заказы сразу появятся на этом экране</p>
+                </div>
+              ) : (
+                activeOrders.map(order => {
+                  const currentEta = orderEtaDrafts[order.orderNumber || ''] ?? (order.estimatedTime || '');
+                  const currentNote = orderNoteDrafts[order.orderNumber || ''] ?? (order.statusNote || '');
+
+                  return (
+                    <div 
+                      key={order.orderNumber}
+                      className={`p-3.5 rounded-2xl border space-y-3 transition-colors ${
+                        isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                      }`}
+                    >
+                      {/* Order Header */}
+                      <div className={`flex items-start justify-between pb-2 border-b ${isDarkTheme ? 'border-slate-800' : 'border-slate-100'}`}>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-extrabold ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                              #{order.orderNumber}
+                            </span>
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md uppercase ${
+                              order.status === 'cooking' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' :
+                              order.status === 'delivering' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                              'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                            }`}>
+                              {order.status === 'cooking' ? '👨‍🍳 На кухне' :
+                               order.status === 'delivering' ? '🚴 В доставке' : '🟡 Новый заказ'}
+                            </span>
+                          </div>
+                          <div className={`text-[11px] mt-0.5 ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {order.createdAt}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-base font-extrabold text-amber-500">{order.totalPrice} ₽</div>
+                          <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Оплата при получении
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Customer Details & Quick Contact */}
+                      <div className={`p-2.5 rounded-xl border text-xs space-y-1.5 ${
+                        isDarkTheme ? 'bg-slate-950/50 border-slate-800/80 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-800'
+                      }`}>
+                        <div className="flex items-center justify-between font-bold">
+                          <span>{order.customerName}</span>
+                          <div className="flex items-center gap-2">
+                            <a 
+                              href={`tel:${order.phone.replace(/[^\d+]/g, '')}`} 
+                              className="px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] flex items-center gap-1 cursor-pointer"
+                            >
+                              <Phone className="w-3 h-3" />
+                              <span>Позвонить</span>
+                            </a>
+                            {order.comment && (
+                              <span className="text-[10px] text-amber-400">💬 Есть коммент</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-blue-500 font-mono text-[11px]">{order.phone}</div>
+                        <div className="flex items-center gap-1 text-[11px]">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>{order.address}</span>
+                        </div>
+                        {order.comment && (
+                          <div className="text-[11px] text-amber-400/90 italic pt-0.5">
+                            «{order.comment}»
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Items List */}
+                      <div className="space-y-1 text-xs">
+                        <div className={`text-[10px] font-bold uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                          Состав заказа:
+                        </div>
+                        {order.items.map((it, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-[11px]">
+                            <span className={isDarkTheme ? 'text-slate-300' : 'text-slate-700'}>
+                              {it.quantity} × {it.name}
+                            </span>
+                            <span className="font-semibold text-slate-400">{it.price * it.quantity} ₽</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* ETA (TIME ESTIMATE) CONTROL */}
+                      <div className={`p-2.5 rounded-xl border space-y-2 ${
+                        isDarkTheme ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                      }`}>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className={`font-bold flex items-center gap-1 ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
+                            <Timer className="w-3.5 h-3.5" />
+                            <span>Расчетное время (ETA):</span>
+                          </span>
+                          <span className="text-xs font-semibold text-blue-500">
+                            {currentEta || 'Не указано'}
+                          </span>
+                        </div>
+
+                        {/* Quick Presets */}
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {['~15 мин', '~25 мин', '~35 мин', '~45 мин'].map(preset => (
+                            <button
+                              key={preset}
+                              onClick={() => {
+                                setOrderEtaDrafts(prev => ({ ...prev, [order.orderNumber || '']: preset }));
+                                triggerHaptic('light');
+                              }}
+                              className={`py-1 rounded-lg text-xs font-semibold border cursor-pointer transition-colors ${
+                                currentEta === preset
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : isDarkTheme ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700'
+                              }`}
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Custom ETA input */}
+                        <input
+                          type="text"
+                          value={currentEta}
+                          onChange={e => setOrderEtaDrafts(prev => ({ ...prev, [order.orderNumber || '']: e.target.value }))}
+                          placeholder="Или напишите свое время (напр. ~40 мин)..."
+                          className={`w-full px-2.5 py-1.5 rounded-lg text-xs border focus:outline-none focus:border-blue-500 ${
+                            isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+                          }`}
+                        />
+
+                        {/* Status Note input */}
+                        <input
+                          type="text"
+                          value={currentNote}
+                          onChange={e => setOrderNoteDrafts(prev => ({ ...prev, [order.orderNumber || '']: e.target.value }))}
+                          placeholder="Пояснение клиенту (напр. шеф готовит пиццу)..."
+                          className={`w-full px-2.5 py-1.5 rounded-lg text-xs border focus:outline-none focus:border-blue-500 ${
+                            isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+                          }`}
+                        />
+                      </div>
+
+                      {/* Status Transition Action Buttons */}
+                      <div className="grid grid-cols-3 gap-1.5 pt-1">
+                        <button
+                          onClick={() => handleAdminStatusUpdate(order.orderNumber || '', 'cooking')}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-colors flex items-center justify-center gap-1 cursor-pointer ${
+                            order.status === 'cooking'
+                              ? 'bg-amber-500 text-slate-950 border-amber-500'
+                              : isDarkTheme ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
+                          }`}
+                        >
+                          <ChefHat className="w-3.5 h-3.5" />
+                          <span>На кухню</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleAdminStatusUpdate(order.orderNumber || '', 'delivering')}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-colors flex items-center justify-center gap-1 cursor-pointer ${
+                            order.status === 'delivering'
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : isDarkTheme ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
+                          }`}
+                        >
+                          <Bike className="w-3.5 h-3.5" />
+                          <span>В доставку</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleAdminStatusUpdate(order.orderNumber || '', 'completed')}
+                          className="py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Выполнен</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: HISTORY */}
+          {adminTab === 'history' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className={`text-sm font-bold tracking-tight ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                  История заказов ({historyOrders.length})
+                </h2>
+              </div>
+
+              {historyOrders.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-xs">
+                  История пока пуста
+                </div>
+              ) : (
+                historyOrders.map(order => (
+                  <div 
+                    key={order.orderNumber}
+                    className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                      isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-bold flex items-center gap-1.5">
+                        <span>#{order.orderNumber}</span>
+                        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                          order.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {order.status === 'completed' ? 'Выполнен' : 'Отменен'}
+                        </span>
+                      </div>
+                      <div className={`text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {order.customerName} • {order.totalPrice} ₽
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setOrderToDelete(order)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: STOP-LIST & PRICES */}
+          {adminTab === 'catalog' && (
+            <div className="space-y-3">
+              <h2 className={`text-sm font-bold tracking-tight ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                Стоп-лист и управление ценами
+              </h2>
+
+              <div className="space-y-2">
+                {products.map(p => (
+                  <div 
+                    key={p.id}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                      isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate max-w-[190px]">
+                      <img src={p.image} alt={p.name} className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                      <div className="truncate">
+                        <div className="font-bold truncate">{p.name}</div>
+                        <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>{p.weight}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {editingPriceId === p.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={editPriceVal}
+                            onChange={e => setEditPriceVal(e.target.value)}
+                            className="w-16 px-1.5 py-0.5 rounded text-xs bg-slate-950 border border-slate-700 text-white"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleSavePrice(p.id)}
+                            className="p-1 rounded bg-emerald-600 text-white"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingPriceId(p.id);
+                            setEditPriceVal(String(p.price));
+                          }}
+                          className="font-bold text-amber-500 flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <span>{p.price} ₽</span>
+                          <Edit2 className="w-3 h-3 opacity-60" />
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => toggleProductAvailability(p.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
+                          p.isAvailable !== false 
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' 
+                            : 'bg-red-500/15 text-red-400 border border-red-500/30'
+                        }`}
+                      >
+                        {p.isAvailable !== false ? 'В наличии' : 'Стоп-лист'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: STATS & ACTIONS */}
+          {adminTab === 'stats' && (
+            <div className="space-y-4">
+              <h2 className={`text-sm font-bold tracking-tight ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                Статистика и обслуживание
+              </h2>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className={`p-3 rounded-2xl border ${isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
+                  <div className={`text-[10px] font-bold uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Общая выручка</div>
+                  <div className="text-lg font-black text-amber-500 mt-0.5">
+                    {orders.reduce((acc, o) => acc + (o.paymentStatus === 'paid' || o.status === 'completed' ? o.totalPrice : 0), 0)} ₽
+                  </div>
+                </div>
+
+                <div className={`p-3 rounded-2xl border ${isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
+                  <div className={`text-[10px] font-bold uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Всего заказов</div>
+                  <div className="text-lg font-black text-blue-500 mt-0.5">
+                    {orders.length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Danger Zone */}
+              <div className={`p-4 rounded-2xl border space-y-2.5 ${
+                isDarkTheme ? 'bg-red-950/20 border-red-900/40 text-red-300' : 'bg-red-50 border-red-200 text-red-900'
+              }`}>
+                <div className="font-bold text-xs flex items-center gap-1.5 text-red-500">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Опасные операции</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  Полная очистка удалит все существующие заказы из базы данных на сервере.
+                </p>
+                <button
+                  onClick={() => setShowClearConfirmModal(true)}
+                  className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Очистить всю историю заказов
+                </button>
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* ADMIN BOTTOM NAVIGATION */}
+        <nav className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-lg transition-colors ${
+          isDarkTheme ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-sm'
+        }`}>
+          <div className="max-w-md mx-auto grid grid-cols-4 px-2 py-1.5">
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                setAdminTab('active');
+              }}
+              className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
+                adminTab === 'active' ? 'text-blue-500 font-bold' : 'text-slate-400'
+              }`}
+            >
+              <Package className="w-4 h-4 mb-0.5" />
+              <span className="text-[10px]">В работе</span>
+              {activeOrders.length > 0 && (
+                <span className="absolute top-1 right-5 w-2 h-2 rounded-full bg-amber-500" />
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                setAdminTab('history');
+              }}
+              className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
+                adminTab === 'history' ? 'text-blue-500 font-bold' : 'text-slate-400'
+              }`}
+            >
+              <Clock className="w-4 h-4 mb-0.5" />
+              <span className="text-[10px]">История</span>
+            </button>
+
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                setAdminTab('catalog');
+              }}
+              className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
+                adminTab === 'catalog' ? 'text-blue-500 font-bold' : 'text-slate-400'
+              }`}
+            >
+              <Utensils className="w-4 h-4 mb-0.5" />
+              <span className="text-[10px]">Стоп-лист</span>
+            </button>
+
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                setAdminTab('stats');
+              }}
+              className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
+                adminTab === 'stats' ? 'text-blue-500 font-bold' : 'text-slate-400'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 mb-0.5" />
+              <span className="text-[10px]">Сводка</span>
+            </button>
+          </div>
+        </nav>
+
+        {/* CLEAR ALL ORDERS MODAL */}
+        {showClearConfirmModal && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+            <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${
+              isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+            }`}>
+              <div className="w-10 h-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h3 className="text-xs font-bold">Очистить ВСЮ историю заказов?</h3>
+              <p className="text-[11px] text-slate-400">
+                Это действие удалит абсолютно все заказы из базы данных навсегда.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  disabled={isClearingOrders}
+                  onClick={() => setShowClearConfirmModal(false)}
+                  className="flex-1 py-1.5 rounded-lg border border-slate-700 text-xs font-medium cursor-pointer"
+                >
+                  Отмена
+                </button>
+                <button
+                  disabled={isClearingOrders}
+                  onClick={handleClearAllOrders}
+                  className="flex-1 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium cursor-pointer"
+                >
+                  {isClearingOrders ? 'Очистка...' : 'Да, очистить'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SINGLE ORDER DELETE MODAL */}
+        {orderToDelete && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+            <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${
+              isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+            }`}>
+              <h3 className="text-xs font-bold">Удалить заказ #{orderToDelete.orderNumber}?</h3>
+              <p className="text-[11px] text-slate-400">Заказ будет удален из истории.</p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setOrderToDelete(null)}
+                  className="flex-1 py-1.5 rounded-lg border border-slate-700 text-xs font-medium cursor-pointer"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={confirmDeleteOrder}
+                  className="flex-1 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium cursor-pointer"
+                >
+                  Удалить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW B: CLIENT STORE APPLICATION (For all regular customers)
+  // =========================================================================
   return (
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-150 select-none pb-24 ${
       isDarkTheme ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
 
-      {/* REFINED HEADER */}
+      {/* CLIENT HEADER (FIXED CONTRAST: explicit colors without dark:) */}
       <header className={`sticky top-0 z-30 px-4 py-2.5 backdrop-blur-lg border-b transition-colors ${
-        isDarkTheme ? 'bg-slate-950/90 border-slate-800/80' : 'bg-white/90 border-slate-200/80 shadow-xs'
+        isDarkTheme ? 'bg-slate-950/90 border-slate-800/80' : 'bg-white/95 border-slate-200 shadow-xs'
       }`}>
         <div className="flex items-center justify-between gap-3">
           
-          {/* Clean Brand Title */}
+          {/* Brand Title with 100% Guaranteed High Contrast */}
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+              <span className={`text-base font-extrabold tracking-tight ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
                 Vibe Kitchen
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+            <div className={`text-[11px] font-medium ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
               Гастрономическое бистро
             </div>
           </div>
@@ -847,8 +1414,8 @@ export function App() {
               title="Переключить тему"
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
                 isDarkTheme 
-                  ? 'bg-slate-900 border-slate-700/70 text-slate-300 hover:bg-slate-800' 
-                  : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                  ? 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800' 
+                  : 'bg-slate-100 border-slate-200 text-slate-800 hover:bg-slate-200'
               }`}
             >
               {isDarkTheme ? <Moon className="w-3.5 h-3.5 text-amber-400" /> : <Sun className="w-3.5 h-3.5 text-amber-600" />}
@@ -865,7 +1432,7 @@ export function App() {
             >
               <ShoppingBag className="w-4 h-4" />
               {totalItemsCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-white dark:border-slate-950">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-white">
                   {totalItemsCount}
                 </span>
               )}
@@ -874,11 +1441,11 @@ export function App() {
         </div>
 
         {/* Live Active Order Banner in Header (if order in progress) */}
-        {activeOrdersCount > 0 && activeTab === 'menu' && (
+        {activeOrders.length > 0 && clientTab === 'menu' && (
           <div 
             onClick={() => {
               triggerHaptic('light');
-              setActiveTab('orders');
+              setClientTab('orders');
             }}
             className={`mt-2 p-2 rounded-xl border flex items-center justify-between text-xs cursor-pointer ${
               isDarkTheme ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-800'
@@ -886,21 +1453,21 @@ export function App() {
           >
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-500" />
-              <span className="font-medium">Заказ готовится</span>
+              <span className="font-semibold">Ваш заказ готовится</span>
             </div>
-            <div className="flex items-center gap-1 font-semibold text-blue-500">
-              <span>Статус</span>
+            <div className="flex items-center gap-1 font-bold text-blue-500">
+              <span>Смотреть статус</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
           </div>
         )}
       </header>
 
-      {/* MAIN CONTENT AREA BY TAB */}
+      {/* CLIENT MAIN CONTENT */}
       <main className="flex-1 max-w-xl mx-auto w-full px-3.5 pt-3">
 
         {/* ================= TAB 1: MENU ================= */}
-        {activeTab === 'menu' && (
+        {clientTab === 'menu' && (
           <div className="space-y-3.5">
             
             {/* Search Bar */}
@@ -936,8 +1503,8 @@ export function App() {
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                   selectedCategory === 'all'
-                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                    : isDarkTheme ? 'bg-slate-900 text-slate-400 border border-slate-800' : 'bg-white text-slate-600 border border-slate-200'
+                    ? (isDarkTheme ? 'bg-white text-slate-900' : 'bg-slate-900 text-white')
+                    : (isDarkTheme ? 'bg-slate-900 text-slate-400 border border-slate-800' : 'bg-white text-slate-600 border border-slate-200')
                 }`}
               >
                 Все
@@ -951,7 +1518,7 @@ export function App() {
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                   selectedCategory === 'favorites'
                     ? 'bg-rose-600 text-white'
-                    : isDarkTheme ? 'bg-slate-900 text-slate-400 border border-slate-800' : 'bg-white text-slate-600 border border-slate-200'
+                    : (isDarkTheme ? 'bg-slate-900 text-slate-400 border border-slate-800' : 'bg-white text-slate-600 border border-slate-200')
                 }`}
               >
                 <Heart className={`w-3 h-3 ${wishlist.length > 0 ? 'fill-current' : ''}`} />
@@ -967,8 +1534,8 @@ export function App() {
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                     selectedCategory === cat.id
-                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
-                      : isDarkTheme ? 'bg-slate-900 text-slate-400 border border-slate-800' : 'bg-white text-slate-600 border border-slate-200'
+                      ? (isDarkTheme ? 'bg-white text-slate-900' : 'bg-slate-900 text-white')
+                      : (isDarkTheme ? 'bg-slate-900 text-slate-400 border border-slate-800' : 'bg-white text-slate-600 border border-slate-200')
                   }`}
                 >
                   {cat.name}
@@ -989,11 +1556,11 @@ export function App() {
                     onClick={() => setSelectedProduct(product)}
                     className={`rounded-2xl border flex flex-col justify-between overflow-hidden transition-all cursor-pointer ${
                       isDarkTheme 
-                        ? 'bg-slate-900 border-slate-800/80 hover:border-slate-700' 
-                        : 'bg-white border-slate-200/90 shadow-xs'
+                        ? 'bg-slate-900 border-slate-800 hover:border-slate-700' 
+                        : 'bg-white border-slate-200 shadow-xs'
                     } ${!isAvail ? 'opacity-55 grayscale-[35%]' : ''}`}
                   >
-                    {/* Image Container with Badges */}
+                    {/* Image Container */}
                     <div className="relative aspect-4/3 overflow-hidden bg-slate-800">
                       <img
                         src={product.image}
@@ -1002,7 +1569,6 @@ export function App() {
                         loading="lazy"
                       />
 
-                      {/* Top Badges */}
                       <div className="absolute top-2 left-2 flex flex-col gap-1">
                         {product.badge && (
                           <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-900/85 text-white backdrop-blur-xs">
@@ -1016,7 +1582,6 @@ export function App() {
                         )}
                       </div>
 
-                      {/* Favorite Button */}
                       <button
                         onClick={(e) => toggleWishlist(product.id, e)}
                         className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-xs transition-transform active:scale-90 ${
@@ -1026,7 +1591,6 @@ export function App() {
                         <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
                       </button>
 
-                      {/* Weight pill */}
                       {product.weight && (
                         <div className="absolute bottom-1.5 left-2 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] font-medium text-white/90">
                           {product.weight}
@@ -1037,7 +1601,7 @@ export function App() {
                     {/* Content */}
                     <div className="p-2.5 flex-1 flex flex-col justify-between">
                       <div>
-                        <h3 className="text-xs font-bold tracking-tight line-clamp-1 mb-0.5">
+                        <h3 className={`text-xs font-bold tracking-tight line-clamp-1 mb-0.5 ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
                           {product.name}
                         </h3>
                         <p className={`text-[11px] line-clamp-2 leading-relaxed mb-2.5 ${
@@ -1060,7 +1624,6 @@ export function App() {
                           )}
                         </div>
 
-                        {/* Add / Quantity Counter */}
                         {isAvail ? (
                           qty > 0 ? (
                             <div 
@@ -1101,45 +1664,41 @@ export function App() {
                 );
               })}
             </div>
-
-            {filteredProducts.length === 0 && (
-              <div className="text-center py-12 space-y-2">
-                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
-                  <Search className="w-5 h-5" />
-                </div>
-                <div className="text-xs font-semibold">Ничего не найдено</div>
-                <p className="text-[11px] text-slate-400">Попробуйте изменить запрос</p>
-              </div>
-            )}
           </div>
         )}
 
-        {/* ================= TAB 2: MY ORDERS ================= */}
-        {activeTab === 'orders' && (
+        {/* ================= TAB 2: CLIENT MY ORDERS (WITH ETA) ================= */}
+        {clientTab === 'orders' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between mb-1">
               <div>
-                <h2 className="text-sm font-bold tracking-tight">Мои заказы</h2>
-                <p className="text-[11px] text-slate-400">История и статус доставки</p>
+                <h2 className={`text-sm font-bold tracking-tight ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                  Мои заказы
+                </h2>
+                <p className={`text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Отслеживание статуса и время доставки
+                </p>
               </div>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-lg bg-slate-800/50 text-slate-300">
+              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-lg ${isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'}`}>
                 {orders.length} заказов
               </span>
             </div>
 
             {orders.length === 0 ? (
               <div className="text-center py-16 space-y-2.5">
-                <div className="w-12 h-12 rounded-full bg-slate-800/60 text-slate-400 flex items-center justify-center mx-auto">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${isDarkTheme ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
                   <Package className="w-6 h-6" />
                 </div>
-                <h3 className="text-xs font-semibold">У вас пока нет заказов</h3>
+                <h3 className={`text-xs font-semibold ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                  У вас пока нет заказов
+                </h3>
                 <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-                  Выберите блюда в меню и оформите заказ в несколько кликов
+                  Выберите блюда в меню и оформите заказ
                 </p>
                 <button
                   onClick={() => {
                     triggerHaptic('light');
-                    setActiveTab('menu');
+                    setClientTab('menu');
                   }}
                   className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-medium cursor-pointer"
                 >
@@ -1154,7 +1713,7 @@ export function App() {
                 return (
                   <div
                     key={order.orderNumber || order.id}
-                    className={`rounded-2xl border p-3 space-y-3 transition-colors ${
+                    className={`rounded-2xl border p-3.5 space-y-3 transition-colors ${
                       isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
                     }`}
                   >
@@ -1162,7 +1721,9 @@ export function App() {
                     <div className={`flex items-center justify-between pb-2 border-b ${isDarkTheme ? 'border-slate-800/60' : 'border-slate-100'}`}>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-xs">Заказ #{order.orderNumber}</span>
+                          <span className={`font-bold text-xs ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                            Заказ #{order.orderNumber}
+                          </span>
                           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
                             order.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' :
                             order.status === 'delivering' ? 'bg-blue-500/15 text-blue-400' :
@@ -1189,6 +1750,25 @@ export function App() {
                       </div>
                     </div>
 
+                    {/* ESTIMATED TIME (ETA) & STATUS NOTE FROM RESTAURANT */}
+                    {!isCancelled && (order.estimatedTime || order.statusNote) && (
+                      <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                        isDarkTheme ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-900'
+                      }`}>
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <div>
+                            {order.estimatedTime && (
+                              <span className="font-bold">Время: {order.estimatedTime}</span>
+                            )}
+                            {order.statusNote && (
+                              <div className="text-[11px] opacity-90">{order.statusNote}</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Progress Stepper */}
                     {!isCancelled && (
                       <div className={`p-2.5 rounded-xl border ${
@@ -1204,7 +1784,6 @@ export function App() {
                             style={{ width: `${((stageIndex - 1) / 3) * 100}%` }}
                           />
 
-                          {/* Node 1 */}
                           <div className="relative z-10 flex flex-col items-center gap-1">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                               stageIndex >= 1 ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
@@ -1214,7 +1793,6 @@ export function App() {
                             <span className="text-[10px] text-slate-400 font-medium">Принят</span>
                           </div>
 
-                          {/* Node 2 */}
                           <div className="relative z-10 flex flex-col items-center gap-1">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                               stageIndex >= 2 ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
@@ -1224,7 +1802,6 @@ export function App() {
                             <span className="text-[10px] text-slate-400 font-medium">Кухня</span>
                           </div>
 
-                          {/* Node 3 */}
                           <div className="relative z-10 flex flex-col items-center gap-1">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                               stageIndex >= 3 ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
@@ -1234,7 +1811,6 @@ export function App() {
                             <span className="text-[10px] text-slate-400 font-medium">В пути</span>
                           </div>
 
-                          {/* Node 4 */}
                           <div className="relative z-10 flex flex-col items-center gap-1">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                               stageIndex >= 4 ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'
@@ -1258,14 +1834,6 @@ export function App() {
                         </div>
                       ))}
                     </div>
-
-                    {/* Delivery Address */}
-                    {order.address && (
-                      <div className={`text-[11px] flex items-center gap-1.5 ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{order.address}</span>
-                      </div>
-                    )}
 
                     {/* Action Buttons */}
                     <div className={`flex items-center gap-2 pt-2 border-t ${isDarkTheme ? 'border-slate-800/60' : 'border-slate-100'}`}>
@@ -1293,15 +1861,18 @@ export function App() {
           </div>
         )}
 
-        {/* ================= TAB 3: SUPPORT & INFO ================= */}
-        {activeTab === 'support' && (
+        {/* ================= TAB 3: CLIENT SUPPORT ================= */}
+        {clientTab === 'support' && (
           <div className="space-y-3.5">
             <div>
-              <h2 className="text-sm font-bold tracking-tight">Служба заботы & Контакты</h2>
-              <p className={`text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Помощь с заказами и связь с разработчиком</p>
+              <h2 className={`text-sm font-bold tracking-tight ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                Служба заботы & Контакты
+              </h2>
+              <p className={`text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                Помощь с заказами и связь с рестораном
+              </p>
             </div>
 
-            {/* Dev Offer */}
             <div className={`p-3.5 rounded-2xl border ${
               isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}>
@@ -1328,7 +1899,6 @@ export function App() {
               </a>
             </div>
 
-            {/* FAQ Accordion */}
             <div className={`rounded-2xl border p-3.5 space-y-2.5 ${
               isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}>
@@ -1345,7 +1915,7 @@ export function App() {
                 }`}>
                   <div className="font-semibold mb-0.5">Как отслеживать статус?</div>
                   <div className="text-[11px] text-slate-400 leading-relaxed">
-                    Во вкладке «Заказы» отображаются все активные стадии приготовления и перемещения курьера в реальном времени.
+                    Во вкладке «Заказы» отображаются все активные стадии приготовления и перемещения курьера с расчетным временем.
                   </div>
                 </div>
 
@@ -1361,271 +1931,69 @@ export function App() {
             </div>
           </div>
         )}
-
-        {/* ================= TAB 4: ADMIN PANEL (@qqeaux only) ================= */}
-        {activeTab === 'admin' && isActualAdmin && (
-          <div className="space-y-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold tracking-tight">Панель управления</h2>
-                <div className="text-[11px] text-amber-500 font-medium">Администратор: @qqeaux</div>
-              </div>
-
-              {/* Clear ALL Orders Button */}
-              <button
-                onClick={() => setShowClearConfirmModal(true)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/25 text-xs font-medium cursor-pointer transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Очистить историю</span>
-              </button>
-            </div>
-
-            {/* Analytics Cards */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className={`p-2.5 rounded-xl border ${isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
-                <div className="text-[10px] text-slate-400 font-medium">Выручка</div>
-                <div className="text-sm font-bold text-amber-500 mt-0.5">
-                  {orders.reduce((acc, o) => acc + (o.paymentStatus === 'paid' ? o.totalPrice : 0), 0)} ₽
-                </div>
-              </div>
-
-              <div className={`p-2.5 rounded-xl border ${isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
-                <div className="text-[10px] text-slate-400 font-medium">Заказов в базе</div>
-                <div className="text-sm font-bold text-blue-500 mt-0.5">
-                  {orders.length}
-                </div>
-              </div>
-            </div>
-
-            {/* Manage Orders */}
-            <div className="space-y-2">
-              <h3 className="text-xs font-semibold text-slate-400">
-                Заказы ({orders.length})
-              </h3>
-
-              {orders.map(order => (
-                <div 
-                  key={order.orderNumber || order.id}
-                  className={`p-3 rounded-xl border space-y-2 text-xs ${
-                    isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs text-slate-900'
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-bold flex items-center gap-1.5">
-                        <span>#{order.orderNumber}</span>
-                        <span className="font-normal text-slate-400">{order.customerName}</span>
-                      </div>
-                      <div className="text-blue-500 text-[11px]">{order.phone}</div>
-                      <div className="text-[11px] text-slate-400 truncate max-w-[200px]">{order.address}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-amber-500">{order.totalPrice} ₽</div>
-                      <span className="text-[10px] text-slate-400 uppercase">{order.status}</span>
-                    </div>
-                  </div>
-
-                  {/* Status Change Buttons */}
-                  <div className={`flex flex-wrap gap-1 pt-1.5 border-t ${isDarkTheme ? 'border-slate-800' : 'border-slate-100'}`}>
-                    <button
-                      onClick={() => handleAdminStatusChange(order.orderNumber || '', 'cooking')}
-                      className={`px-2 py-1 rounded text-[10px] font-medium border cursor-pointer ${
-                        order.status === 'cooking' 
-                          ? 'bg-amber-500 text-slate-950 border-amber-500' 
-                          : 'bg-slate-800 border-slate-700 text-slate-300'
-                      }`}
-                    >
-                      👨‍🍳 Кухня
-                    </button>
-                    <button
-                      onClick={() => handleAdminStatusChange(order.orderNumber || '', 'delivering')}
-                      className={`px-2 py-1 rounded text-[10px] font-medium border cursor-pointer ${
-                        order.status === 'delivering' 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-slate-800 border-slate-700 text-slate-300'
-                      }`}
-                    >
-                      🚴 Доставка
-                    </button>
-                    <button
-                      onClick={() => handleAdminStatusChange(order.orderNumber || '', 'completed')}
-                      className={`px-2 py-1 rounded text-[10px] font-medium border cursor-pointer ${
-                        order.status === 'completed' 
-                          ? 'bg-emerald-600 text-white border-emerald-600' 
-                          : 'bg-slate-800 border-slate-700 text-slate-300'
-                      }`}
-                    >
-                      ✅ Выполнен
-                    </button>
-                    <button
-                      onClick={() => setOrderToDelete(order)}
-                      className="px-2 py-1 rounded text-[10px] font-medium bg-red-500/10 text-red-400 border border-red-500/20 cursor-pointer ml-auto"
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Products Price & Availability Controls */}
-            <div className="space-y-2 pt-1">
-              <h3 className="text-xs font-semibold text-slate-400">
-                Каталог блюд и цены
-              </h3>
-              <div className="space-y-1.5">
-                {products.map(p => (
-                  <div 
-                    key={p.id}
-                    className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
-                      isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 truncate max-w-[180px]">
-                      <img src={p.image} alt={p.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
-                      <div className="truncate">
-                        <div className="font-medium truncate">{p.name}</div>
-                        <div className="text-[10px] text-slate-400">{p.weight}</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {editingPriceId === p.id ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            value={editPriceVal}
-                            onChange={e => setEditPriceVal(e.target.value)}
-                            className="w-16 px-1.5 py-0.5 rounded text-xs bg-slate-950 border border-slate-700 text-white"
-                            autoFocus
-                          />
-                          <button
-                            onClick={() => handleSavePrice(p.id)}
-                            className="p-1 rounded bg-emerald-600 text-white"
-                          >
-                            <Check className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setEditingPriceId(p.id);
-                            setEditPriceVal(String(p.price));
-                          }}
-                          className="font-bold text-amber-500 flex items-center gap-1 hover:underline cursor-pointer"
-                        >
-                          <span>{p.price} ₽</span>
-                          <Edit2 className="w-3 h-3 opacity-60" />
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => toggleProductAvailability(p.id)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
-                          p.isAvailable !== false ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
-                        }`}
-                      >
-                        {p.isAvailable !== false ? 'В наличии' : 'Стоп'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
-      {/* ================= FIXED BOTTOM NAVIGATION ================= */}
+      {/* CLIENT BOTTOM NAVIGATION (Fixed tabs: Меню, Заказы, Инфо, Корзина) */}
       <nav className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-lg transition-colors ${
         isDarkTheme ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-sm'
       }`}>
         <div className="max-w-md mx-auto grid grid-cols-4 px-2 py-1.5">
-          
-          {/* Tab 1: Menu */}
           <button
             onClick={() => {
               triggerHaptic('light');
-              setActiveTab('menu');
+              setClientTab('menu');
             }}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
-              activeTab === 'menu'
-                ? 'text-blue-500 font-bold'
-                : 'text-slate-400 hover:text-slate-300 font-medium'
+              clientTab === 'menu' ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-slate-600'
             }`}
           >
             <Utensils className="w-4 h-4 mb-0.5" />
             <span className="text-[10px]">Меню</span>
           </button>
 
-          {/* Tab 2: Orders */}
           <button
             onClick={() => {
               triggerHaptic('light');
-              setActiveTab('orders');
+              setClientTab('orders');
             }}
             className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
-              activeTab === 'orders'
-                ? 'text-blue-500 font-bold'
-                : 'text-slate-400 hover:text-slate-300 font-medium'
+              clientTab === 'orders' ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-slate-600'
             }`}
           >
             <Package className="w-4 h-4 mb-0.5" />
             <span className="text-[10px]">Заказы</span>
-            {activeOrdersCount > 0 && (
+            {activeOrders.length > 0 && (
               <span className="absolute top-1 right-5 w-2 h-2 rounded-full bg-amber-500" />
             )}
           </button>
 
-          {/* Tab 3: Support */}
           <button
             onClick={() => {
               triggerHaptic('light');
-              setActiveTab('support');
+              setClientTab('support');
             }}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
-              activeTab === 'support'
-                ? 'text-blue-500 font-bold'
-                : 'text-slate-400 hover:text-slate-300 font-medium'
+              clientTab === 'support' ? 'text-blue-500 font-bold' : 'text-slate-400 hover:text-slate-600'
             }`}
           >
             <HelpCircle className="w-4 h-4 mb-0.5" />
             <span className="text-[10px]">Инфо</span>
           </button>
 
-          {/* Tab 4: Admin (only if @qqeaux) or Cart button */}
-          {isActualAdmin ? (
-            <button
-              onClick={() => {
-                triggerHaptic('medium');
-                setActiveTab('admin');
-              }}
-              className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
-                activeTab === 'admin'
-                  ? 'text-amber-500 font-bold'
-                  : 'text-slate-400 hover:text-slate-300 font-medium'
-              }`}
-            >
-              <span className="text-sm mb-0.5 leading-none">👑</span>
-              <span className="text-[10px]">Админ</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                triggerHaptic('light');
-                setIsCartOpen(true);
-              }}
-              className="flex flex-col items-center justify-center py-1 rounded-xl text-slate-400 hover:text-slate-300 font-medium cursor-pointer"
-            >
-              <ShoppingBag className="w-4 h-4 mb-0.5" />
-              <span className="text-[10px]">Корзина</span>
-            </button>
-          )}
+          <button
+            onClick={() => {
+              triggerHaptic('light');
+              setIsCartOpen(true);
+            }}
+            className="flex flex-col items-center justify-center py-1 rounded-xl text-slate-400 hover:text-slate-600 font-medium cursor-pointer"
+          >
+            <ShoppingBag className="w-4 h-4 mb-0.5" />
+            <span className="text-[10px]">Корзина</span>
+          </button>
         </div>
       </nav>
 
-      {/* ================= PRODUCT DETAIL MODAL (KBJU & INGREDIENTS) ================= */}
+      {/* PRODUCT DETAIL MODAL (Client) */}
       {selectedProduct && (() => {
         const currentProduct = products.find(p => p.id === selectedProduct.id) || selectedProduct;
         const isAvail = currentProduct.isAvailable !== false;
@@ -1636,7 +2004,6 @@ export function App() {
               isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               
-              {/* Modal Image */}
               <div className="relative aspect-16/9 w-full bg-slate-950 overflow-hidden shrink-0">
                 <img 
                   src={currentProduct.image} 
@@ -1650,7 +2017,6 @@ export function App() {
                   <X className="w-4 h-4" />
                 </button>
 
-                {/* Badges */}
                 <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5">
                   {!isAvail ? (
                     <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-600 text-white">
@@ -1669,7 +2035,6 @@ export function App() {
                 </div>
               </div>
 
-              {/* Scrollable Content */}
               <div className="p-3.5 overflow-y-auto space-y-3.5">
                 <div>
                   <h2 className="text-base font-bold tracking-tight">{currentProduct.name}</h2>
@@ -1678,7 +2043,6 @@ export function App() {
                   </p>
                 </div>
 
-                {/* KBJU Grid */}
                 <div className={`p-3 rounded-xl border ${
                   isDarkTheme ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}>
@@ -1707,7 +2071,6 @@ export function App() {
                   </div>
                 </div>
 
-                {/* Ingredients */}
                 {currentProduct.ingredients && currentProduct.ingredients.length > 0 && (
                   <div className="space-y-1">
                     <div className="text-xs font-semibold text-slate-400">Состав</div>
@@ -1723,21 +2086,8 @@ export function App() {
                     </ul>
                   </div>
                 )}
-
-                {/* Allergens */}
-                {currentProduct.allergens && currentProduct.allergens.length > 0 && (
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[10px] text-slate-400">Аллергены:</span>
-                    {currentProduct.allergens.map((alg, i) => (
-                      <span key={i} className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/10 text-red-400 border border-red-500/20">
-                        {alg}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
 
-              {/* Modal Footer */}
               <div className={`p-3 border-t flex items-center justify-between gap-3 ${
                 isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
               }`}>
@@ -1787,14 +2137,12 @@ export function App() {
         );
       })()}
 
-      {/* ================= CART & CHECKOUT DRAWER ================= */}
+      {/* CLIENT CART DRAWER */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
           <div className={`w-full max-w-md h-full flex flex-col justify-between border-l ${
             isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}>
-            
-            {/* Header */}
             <div className={`p-3.5 border-b flex items-center justify-between ${isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="flex items-center gap-2 font-bold text-xs">
                 <ShoppingBag className="w-4 h-4 text-blue-500" />
@@ -1808,9 +2156,7 @@ export function App() {
               </button>
             </div>
 
-            {/* Scrollable Form & Items */}
             <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
-              
               {cartItems.length === 0 ? (
                 <div className="text-center py-16 space-y-2">
                   <div className="w-10 h-10 rounded-full bg-slate-800/60 flex items-center justify-center mx-auto text-slate-400">
@@ -1821,7 +2167,6 @@ export function App() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase">Блюда в заказе:</div>
                   {cartItems.map(item => (
                     <div 
                       key={item.product.id}
@@ -1833,14 +2178,7 @@ export function App() {
                         <img src={item.product.image} alt={item.product.name} className="w-9 h-9 rounded-lg object-cover shrink-0" />
                         <div className="truncate">
                           <div className="font-semibold truncate">{item.product.name}</div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-amber-500 font-bold">{item.product.price} ₽</span>
-                            {item.product.isAvailable === false && (
-                              <span className="text-[9px] font-bold text-red-400 bg-red-500/10 px-1 py-0.5 rounded">
-                                Стоп
-                              </span>
-                            )}
-                          </div>
+                          <div className="text-amber-500 font-bold">{item.product.price} ₽</div>
                         </div>
                       </div>
 
@@ -1867,19 +2205,14 @@ export function App() {
               {/* Promocode */}
               {cartItems.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
-                    <Tag className="w-3 h-3 text-blue-500" />
-                    <span>Промокод</span>
-                  </div>
-
                   <div className="flex gap-1.5">
                     <input
                       type="text"
                       value={promoCodeInput}
                       onChange={e => setPromoCodeInput(e.target.value)}
-                      placeholder="Код (например VIBE20)"
+                      placeholder="Промокод (VIBE20)"
                       className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs uppercase border focus:outline-none focus:border-blue-500 ${
-                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-200 text-slate-900'
+                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
                       }`}
                     />
                     <button
@@ -1890,69 +2223,8 @@ export function App() {
                       Применить
                     </button>
                   </div>
-                  {appliedPromo && (
-                    <div className="text-[11px] text-emerald-400 font-medium">
-                      Промокод {appliedPromo.code} применен!
-                    </div>
-                  )}
-                  {promoError && (
-                    <div className="text-[11px] text-red-400 font-medium">
-                      {promoError}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Cutlery & Tips */}
-              {cartItems.length > 0 && (
-                <div className="space-y-3 pt-1">
-                  {/* Cutlery */}
-                  <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
-                    isDarkTheme ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
-                  }`}>
-                    <div className="text-xs font-medium">Приборы:</div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setCutleryCount(prev => Math.max(0, prev - 1))}
-                        className="w-6 h-6 rounded bg-slate-800 text-white flex items-center justify-center cursor-pointer"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="text-xs font-bold px-1.5">{cutleryCount}</span>
-                      <button
-                        type="button"
-                        onClick={() => setCutleryCount(prev => Math.min(6, prev + 1))}
-                        className="w-6 h-6 rounded bg-slate-800 text-white flex items-center justify-center cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Tips */}
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-semibold text-slate-400 uppercase">Чаевые курьеру:</div>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {[0, 50, 100, 150].map(amt => (
-                        <button
-                          key={amt}
-                          type="button"
-                          onClick={() => {
-                            setTipsAmount(amt);
-                            playSound('add');
-                          }}
-                          className={`py-1.5 rounded-lg text-xs font-medium border cursor-pointer ${
-                            tipsAmount === amt
-                              ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold'
-                              : 'bg-slate-800/40 border-slate-700/50 text-slate-300'
-                          }`}
-                        >
-                          {amt === 0 ? '0 ₽' : `+${amt} ₽`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {appliedPromo && <div className="text-[11px] text-emerald-400 font-medium">Промокод {appliedPromo.code} применен!</div>}
+                  {promoError && <div className="text-[11px] text-red-400 font-medium">{promoError}</div>}
                 </div>
               )}
 
@@ -2025,7 +2297,6 @@ export function App() {
                     />
                   </div>
 
-                  {/* Payment Method Notice */}
                   <div className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs ${
                     isDarkTheme ? 'bg-slate-950/40 border-slate-800/60 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
                   }`}>
@@ -2036,49 +2307,19 @@ export function App() {
               )}
             </div>
 
-            {/* Bottom Checkout Actions */}
             {cartItems.length > 0 && (
               <div className={`p-3.5 border-t space-y-2.5 ${isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between text-slate-400">
-                    <span>Сумма блюд:</span>
-                    <span>{subtotalPrice} ₽</span>
-                  </div>
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between text-emerald-400">
-                      <span>Скидка:</span>
-                      <span>-{discountAmount} ₽</span>
-                    </div>
-                  )}
-                  {tipsAmount > 0 && (
-                    <div className="flex justify-between text-amber-500">
-                      <span>Чаевые:</span>
-                      <span>+{tipsAmount} ₽</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center text-sm font-bold pt-1 border-t border-slate-800">
-                    <span>Итого:</span>
-                    <span className="text-amber-500 text-base">{totalPrice} ₽</span>
-                  </div>
+                <div className="flex justify-between items-center text-sm font-bold">
+                  <span>Итого к оплате:</span>
+                  <span className="text-amber-500 text-base">{totalPrice} ₽</span>
                 </div>
-
-                {cartItems.some(i => i.product.isAvailable === false) && (
-                  <div className="p-2 rounded-lg bg-red-500/10 text-red-400 text-xs text-center">
-                    В заказе есть блюда из стоп-листа.
-                  </div>
-                )}
 
                 <button
                   type="submit"
                   form="order-form"
-                  disabled={cartItems.some(i => i.product.isAvailable === false)}
-                  className={`w-full py-3 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 ${
-                    cartItems.some(i => i.product.isAvailable === false)
-                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
-                  }`}
+                  className="w-full py-3 rounded-xl font-bold text-xs bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer"
                 >
-                  <span>Оформить заказ ({totalPrice} ₽)</span>
+                  Оформить заказ ({totalPrice} ₽)
                 </button>
               </div>
             )}
@@ -2086,66 +2327,7 @@ export function App() {
         </div>
       )}
 
-      {/* ================= ORDER DELETE MODAL ================= */}
-      {orderToDelete && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${
-            isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
-            <h3 className="text-xs font-bold">Удалить заказ #{orderToDelete.orderNumber}?</h3>
-            <p className="text-[11px] text-slate-400">Заказ будет удален из истории.</p>
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => setOrderToDelete(null)}
-                className="flex-1 py-1.5 rounded-lg border border-slate-700 text-xs font-medium cursor-pointer"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={confirmDeleteOrder}
-                className="flex-1 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium cursor-pointer"
-              >
-                Удалить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= CLEAR ALL ORDERS MODAL (Admin only) ================= */}
-      {showClearConfirmModal && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${
-            isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
-            <div className="w-10 h-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto">
-              <Trash2 className="w-5 h-5" />
-            </div>
-            <h3 className="text-xs font-bold">Очистить ВСЮ историю заказов?</h3>
-            <p className="text-[11px] text-slate-400">
-              Это действие удалит абсолютно все заказы из базы данных навсегда.
-            </p>
-            <div className="flex gap-2 pt-1">
-              <button
-                disabled={isClearingOrders}
-                onClick={() => setShowClearConfirmModal(false)}
-                className="flex-1 py-1.5 rounded-lg border border-slate-700 text-xs font-medium cursor-pointer"
-              >
-                Отмена
-              </button>
-              <button
-                disabled={isClearingOrders}
-                onClick={handleClearAllOrders}
-                className="flex-1 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium cursor-pointer"
-              >
-                {isClearingOrders ? 'Очистка...' : 'Да, очистить'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= ORDER SUCCESS MODAL ================= */}
+      {/* CLIENT SUCCESS MODAL */}
       {orderSuccess && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
           <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${
@@ -2161,29 +2343,42 @@ export function App() {
               </p>
             </div>
 
-            <div className={`p-2.5 rounded-xl border text-left text-[11px] space-y-1 ${
-              isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Сумма:</span>
-                <span className="font-bold text-amber-500">{orderSuccess.totalPrice} ₽</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Оплата:</span>
-                <span>При получении</span>
-              </div>
-            </div>
-
             <button
               onClick={() => {
                 triggerHaptic('light');
                 setOrderSuccess(null);
-                setActiveTab('orders');
+                setClientTab('orders');
               }}
               className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs cursor-pointer"
             >
               Перейти к заказам
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* SINGLE ORDER DELETE MODAL (Client) */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+          <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${
+            isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <h3 className="text-xs font-bold">Удалить заказ #{orderToDelete.orderNumber}?</h3>
+            <p className="text-[11px] text-slate-400">Заказ будет удален из вашей истории.</p>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setOrderToDelete(null)}
+                className="flex-1 py-1.5 rounded-lg border border-slate-700 text-xs font-medium cursor-pointer"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={confirmDeleteOrder}
+                className="flex-1 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium cursor-pointer"
+              >
+                Удалить
+              </button>
+            </div>
           </div>
         </div>
       )}

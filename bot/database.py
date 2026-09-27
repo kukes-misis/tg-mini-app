@@ -40,11 +40,12 @@ def init_db():
     )
     """)
 
-    # Ensure email column exists if table was already created
-    try:
-        cursor.execute("ALTER TABLE orders ADD COLUMN email TEXT")
-    except sqlite3.OperationalError:
-        pass
+    # Ensure optional columns exist if table was already created
+    for col in ["email", "estimated_time", "status_note"]:
+        try:
+            cursor.execute(f"ALTER TABLE orders ADD COLUMN {col} TEXT")
+        except sqlite3.OperationalError:
+            pass
 
     # Products table
     cursor.execute("""
@@ -159,10 +160,20 @@ def get_order_by_number(order_number):
     conn.close()
     return order
 
-def update_order_status(order_number, new_status):
+def update_order_status(order_number, new_status, estimated_time=None, status_note=None):
     conn = _connect()
     cursor = conn.cursor()
-    cursor.execute("UPDATE orders SET status = ? WHERE order_number = ?", (new_status, order_number))
+    if estimated_time is not None and status_note is not None:
+        cursor.execute("UPDATE orders SET status = ?, estimated_time = ?, status_note = ? WHERE order_number = ?", 
+                       (new_status, estimated_time, status_note, order_number))
+    elif estimated_time is not None:
+        cursor.execute("UPDATE orders SET status = ?, estimated_time = ? WHERE order_number = ?", 
+                       (new_status, estimated_time, order_number))
+    elif status_note is not None:
+        cursor.execute("UPDATE orders SET status = ?, status_note = ? WHERE order_number = ?", 
+                       (new_status, status_note, order_number))
+    else:
+        cursor.execute("UPDATE orders SET status = ? WHERE order_number = ?", (new_status, order_number))
     conn.commit()
     conn.close()
 

@@ -50,6 +50,8 @@ export interface OrderData {
   paymentMethod: 'online' | 'cash';
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
+  estimatedTime?: string;
+  statusNote?: string;
   createdAt?: string;
   deletedForUser?: boolean;
 }

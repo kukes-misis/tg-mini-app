@@ -31,14 +31,24 @@ class AdminPriceState(StatesGroup):
     waiting_for_price = State()
 
 def get_keyboard(username: str | None, user_id: int | None):
-    buttons = [
-        [
-            KeyboardButton(
-                text="🛍️ Открыть ресторан & меню", 
-                web_app=WebAppInfo(url=WEBAPP_URL)
-            )
+    if is_admin(username, user_id):
+        buttons = [
+            [
+                KeyboardButton(
+                    text="👑 Диспетчерская (Управление заказами)", 
+                    web_app=WebAppInfo(url=f"{WEBAPP_URL}?mode=admin")
+                )
+            ]
         ]
-    ]
+    else:
+        buttons = [
+            [
+                KeyboardButton(
+                    text="🛍️ Открыть ресторан & меню", 
+                    web_app=WebAppInfo(url=WEBAPP_URL)
+                )
+            ]
+        ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 @dp.message(CommandStart())
@@ -261,16 +271,19 @@ async def cb_update_status(callback: types.CallbackQuery):
     parts = callback.data.split("_")
     order_num = parts[1]
     new_status = parts[2]
+    eta = parts[3] if len(parts) > 3 else None
+    eta_text = f"~{eta.replace('m', ' мин')}" if eta else None
 
-    db.update_order_status(order_num, new_status)
-    await callback.answer(f"Статус заказа #{order_num} изменен!")
+    db.update_order_status(order_num, new_status, estimated_time=eta_text)
+    await callback.answer(f"Статус #{order_num}: {new_status} ({eta_text or ''})")
 
     order = db.get_order_by_number(order_num)
     # Automatically notify the customer in their Telegram chat
     if order and order.get('user_id'):
+        eta_line = f"\n⏱ <b>Примерное время:</b> {eta_text}" if eta_text else ""
         status_client_msgs = {
-            "cooking": f"👨‍🍳 <b>Ваш заказ #{order_num} передан на кухню и уже готовится!</b>\n\nШеф-повар собирает ингредиенты. Вы можете следить за стадиями заказа прямо в приложении.",
-            "delivering": f"🚴 <b>Курьер забрал заказ #{order_num} и выехал!</b>\n\nАдрес доставки: {html.escape(order.get('address', ''))}. Курьер скоро будет у вас.",
+            "cooking": f"👨‍🍳 <b>Ваш заказ #{order_num} передан на кухню и уже готовится!</b>{eta_line}\n\nШеф-повар собирает ингредиенты. Вы можете следить за стадиями прямо в приложении.",
+            "delivering": f"🚴 <b>Курьер забрал заказ #{order_num} и выехал!</b>{eta_line}\n\nАдрес доставки: {html.escape(order.get('address', ''))}. Курьер скоро будет у вас.",
             "completed": f"🎉 <b>Заказ #{order_num} успешно доставлен!</b>\n\nПриятного аппетита! Будем рады вашему отзыву.",
             "cancelled": f"❌ <b>Заказ #{order_num} был отменен.</b>\n\nЕсли у вас есть вопросы, служба заботы всегда на связи в приложении."
         }
@@ -568,8 +581,14 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
     admin_kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="👨‍🍳 В готовку", callback_data=f"st_{order_num}_cooking"),
-                InlineKeyboardButton(text="🚴 В доставку", callback_data=f"st_{order_num}_delivering")
+                InlineKeyboardButton(
+                    text="👑 Открыть в Диспетчерской", 
+                    web_app=WebAppInfo(url=f"{WEBAPP_URL}?mode=admin&order={order_num}")
+                )
+            ],
+            [
+                InlineKeyboardButton(text="👨‍🍳 Кухня (~20м)", callback_data=f"st_{order_num}_cooking_20m"),
+                InlineKeyboardButton(text="🚴 В путь (~30м)", callback_data=f"st_{order_num}_delivering_30m")
             ],
             [
                 InlineKeyboardButton(text="✅ Выполнен", callback_data=f"st_{order_num}_completed"),
@@ -869,17 +888,22 @@ async def handle_update_order_status(request):
         data = await request.json()
         order_num = data.get("orderNumber")
         new_status = data.get("status")
+        estimated_time = data.get("estimatedTime")
+        status_note = data.get("statusNote")
         if not order_num or not new_status:
             return web.json_response({"ok": False, "error": "Invalid params"}, status=400, headers={"Access-Control-Allow-Origin": "*"})
 
-        db.update_order_status(order_num, new_status)
+        db.update_order_status(order_num, new_status, estimated_time=estimated_time, status_note=status_note)
         order = db.get_order_by_number(order_num)
         if order and order.get('user_id'):
+            eta_info = f"\n⏱ <b>Примерное время:</b> {html.escape(estimated_time)}" if estimated_time else ""
+            note_info = f"\n💬 <b>Примечание от ресторана:</b> {html.escape(status_note)}" if status_note else ""
+
             status_client_msgs = {
-                "cooking": f"👨‍🍳 <b>Ваш заказ #{order_num} передан на кухню и уже готовится!</b>\n\nШеф-повар собирает ингредиенты. Вы можете следить за стадиями заказа прямо в приложении.",
-                "delivering": f"🚴 <b>Курьер забрал заказ #{order_num} и выехал!</b>\n\nАдрес доставки: {html.escape(order.get('address', ''))}. Курьер скоро будет у вас.",
-                "completed": f"🎉 <b>Заказ #{order_num} успешно доставлен!</b>\n\nПриятного аппетита! Будем рады вашему отзыву.",
-                "cancelled": f"❌ <b>Заказ #{order_num} был отменен.</b>\n\nЕсли у вас есть вопросы, служба заботы всегда на связи в приложении."
+                "cooking": f"👨‍🍳 <b>Ваш заказ #{order_num} передан на кухню и уже готовится!</b>{eta_info}{note_info}\n\nШеф-повар собирает ингредиенты. Вы можете следить за стадиями прямо в приложении.",
+                "delivering": f"🚴 <b>Курьер забрал заказ #{order_num} и выехал!</b>{eta_info}{note_info}\n\nАдрес доставки: {html.escape(order.get('address', ''))}. Курьер скоро будет у вас.",
+                "completed": f"🎉 <b>Заказ #{order_num} успешно доставлен!</b>{note_info}\n\nПриятного аппетита! Будем рады вашему отзыву.",
+                "cancelled": f"❌ <b>Заказ #{order_num} был отменен.</b>{note_info}\n\nЕсли у вас есть вопросы, служба заботы всегда на связи в приложении."
             }
             client_text = status_client_msgs.get(new_status)
             if client_text:
