@@ -1161,7 +1161,7 @@ export function App() {
               </div>
               <h3 className="text-sm font-black mb-1.5">Хотите такой же Telegram Mini App для бизнеса?</h3>
               <p className="text-xs text-slate-400 leading-relaxed mb-3">
-                Создаем полноценные цифровые рестораны, каталоги товаров и сервисы доставки с онлайн-оплатой (ЮKassa / СБП), закрытой админкой и защитой от фрода.
+                Создаем полноценные цифровые рестораны, каталоги товаров и сервисы доставки с удобным приемом заказов, закрытой админкой и защитой от фрода.
               </p>
               
               <div className="flex items-center gap-3 text-xs font-semibold mb-3.5 text-slate-300">
@@ -1201,7 +1201,7 @@ export function App() {
                 <div className="p-3 rounded-2xl bg-slate-950/40 border border-slate-800/60">
                   <div className="font-bold text-slate-200 mb-1">Какие способы оплаты доступны?</div>
                   <div className="text-slate-400 text-[11px] leading-relaxed">
-                    Официально через ЮKassa (банковские карты РФ, СБП с QR-кодом) или при получении курьеру наличными / картой.
+                    Оплата производится при получении курьеру наличными или банковской картой.
                   </div>
                 </div>
 
@@ -1881,28 +1881,15 @@ export function App() {
                     />
                   </div>
 
-                  {/* Payment Selection */}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('online')}
-                      className={`p-3 rounded-xl border text-left flex flex-col gap-1 ${
-                        paymentMethod === 'online' ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'border-slate-800 bg-slate-950 text-slate-400'
-                      }`}
-                    >
-                      <CreditCard className="w-4 h-4 text-blue-500" />
-                      <span className="text-xs font-bold">Онлайн (ЮKassa)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('cash')}
-                      className={`p-3 rounded-xl border text-left flex flex-col gap-1 ${
-                        paymentMethod === 'cash' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-slate-800 bg-slate-950 text-slate-400'
-                      }`}
-                    >
-                      <Banknote className="w-4 h-4 text-emerald-500" />
-                      <span className="text-xs font-bold">При получении</span>
-                    </button>
+                  {/* Payment Method Notice */}
+                  <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center gap-2.5 text-xs text-slate-300">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                      <Banknote className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-200">Оплата при получении</div>
+                      <div className="text-[11px] text-slate-400">Наличными или банковской картой курьеру</div>
+                    </div>
                   </div>
                 </form>
               )}

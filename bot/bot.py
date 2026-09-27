@@ -213,7 +213,7 @@ async def cb_order_view(callback: types.CallbackQuery):
     for idx, item in enumerate(order.get('items', []), 1):
         items_str += f"  {idx}. {item.get('name')} × {item.get('quantity')} = {item.get('price', 0) * item.get('quantity', 1)} ₽\n"
 
-    pay_badge = "💳 Оплачен онлайн (ЮKassa / СБП)" if order.get('payment_status') == 'paid' else "⏳ Ожидает оплаты (при получении)"
+    pay_badge = "✅ Оплачен курьеру" if order.get('payment_status') == 'paid' else "⏳ Оплата при получении"
 
     msg = (
         f"📋 *Детали заказа #{order['order_number']}*\n\n"
@@ -477,7 +477,7 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
     address = data.get("address", "")
     comment = data.get("comment", "")
     payment_method = data.get("paymentMethod", "online")
-    payment_str = "Оплата онлайн (ЮKassa / СБП)" if payment_method == "online" else "Оплата при получении"
+    payment_str = "Оплата при получении (курьеру)"
 
     # Save to SQLite database
     try:
@@ -686,7 +686,7 @@ async def cb_support_dev(callback: types.CallbackQuery):
         "— Каталоги товаров и услуг\n"
         "— Доставка еды и бронирование\n"
         "— Закрытая панель администратора для владельца\n"
-        "— Прием платежей (ЮKassa / СБП)\n"
+        "— Удобный прием заказов и онлайн-уведомления\n"
         "— Авто-переключение тем (день/ночь) и валидация данных\n\n"
         "⏱ *Срок реализации:* 3–5 дней\n"
         "💰 *Стоимость:* от 25 000 руб.\n\n"
@@ -709,7 +709,7 @@ async def cb_support_faq(callback: types.CallbackQuery):
         "1. *Как отследить статус заказа?*\n"
         "После оформления бот автоматически присылает уведомления на каждом этапе (готовка, выезд курьера, доставка).\n\n"
         "2. *Как работает оплата?*\n"
-        "Оплата производится официально через ЮKassa (карты, СБП) или при получении курьеру.\n\n"
+        "Оплата производится курьеру при получении (наличными или банковской картой).\n\n"
         "3. *Сколько занимает доставка?*\n"
         "Среднее время приготовления и доставки по городу: 30–45 минут."
     )
