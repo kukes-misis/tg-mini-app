@@ -210,10 +210,11 @@ export function App() {
     localStorage.setItem('tg_store_orders', JSON.stringify(orders));
   }, [orders]);
 
-  // Check admin: strictly and ONLY @qqeaux forever
+  // Check admin: strictly and ONLY @qqeaux (and user's verified device ID 5847598677)
   const isActualAdmin = useMemo(() => {
     const tgUsername = window.Telegram?.WebApp?.initDataUnsafe?.user?.username?.toLowerCase() || '';
-    return tgUsername === 'qqeaux';
+    const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    return tgUsername === 'qqeaux' || tgId === 5847598677;
   }, []);
 
   // Telegram WebApp initialization
@@ -350,9 +351,28 @@ export function App() {
       createdAt: 'Только что'
     };
 
-    // Send payload to Telegram Bot (which sends receipt to user & push alert to admin)
+    // Send payload via direct HTTP API to Render server (works in all environments)
+    try {
+      fetch('https://tg-mini-app-se10.onrender.com/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newOrder,
+          userId: window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 0,
+          username: window.Telegram?.WebApp?.initDataUnsafe?.user?.username || ''
+        })
+      }).catch(err => console.warn('API sync warning:', err));
+    } catch (e) {
+      console.warn('API fetch error:', e);
+    }
+
+    // Send payload to Telegram Bot via Telegram WebApp SDK
     if (window.Telegram?.WebApp?.sendData) {
-      window.Telegram.WebApp.sendData(JSON.stringify(newOrder));
+      try {
+        window.Telegram.WebApp.sendData(JSON.stringify(newOrder));
+      } catch (err) {
+        console.warn('sendData error:', err);
+      }
     }
 
     // Save to local admin orders list

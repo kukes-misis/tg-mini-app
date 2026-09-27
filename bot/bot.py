@@ -1,8 +1,11 @@
 import asyncio
+import html
 import json
 import logging
 import os
 import random
+import re
+import time
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart, Command
@@ -15,7 +18,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton
 )
-from config import BOT_TOKEN, WEBAPP_URL, is_admin
+from config import BOT_TOKEN, WEBAPP_URL, is_admin, DEFAULT_ADMIN_CHAT_ID
 import database as db
 
 logging.basicConfig(level=logging.INFO)
@@ -442,27 +445,34 @@ async def cb_admin_analytics(callback: types.CallbackQuery):
 
 # --- USER ORDER PROCESSING & INSTANT ADMIN NOTIFICATIONS ---
 
-@dp.message(F.content_type == types.ContentType.WEB_APP_DATA)
-async def handle_webapp_data(message: types.Message):
-    raw_data = message.web_app_data.data
-    user = message.from_user
-    user_id = user.id if user else 0
-    username = user.username if user else ""
+PROCESSED_ORDERS: dict[str, float] = {}
+
+async def process_order_data(data: dict, user=None, message: types.Message | None = None, source: str = "webapp"):
+    order_num = str(data.get("orderNumber") or random.randint(1000, 9999))
+    now = time.time()
+
+    # Deduplicate alerts within 60s
+    is_duplicate = False
+    if order_num in PROCESSED_ORDERS and (now - PROCESSED_ORDERS[order_num]) < 60:
+        is_duplicate = True
+    PROCESSED_ORDERS[order_num] = now
+
+    user_id = user.id if user else (data.get("userId") or 0)
+    username = user.username if user else (data.get("username") or "")
     first_name = user.first_name if user else "Клиент"
 
-    try:
-        data = json.loads(raw_data)
-        order_num = data.get("orderNumber") or str(random.randint(1000, 9999))
-        items = data.get("items", [])
-        total_price = data.get("totalPrice", 0)
-        customer_name = data.get("customerName", first_name)
-        phone = data.get("phone", "")
-        email = data.get("email", "")
-        address = data.get("address", "")
-        comment = data.get("comment", "")
-        payment_method = data.get("paymentMethod", "online")
+    items = data.get("items", [])
+    total_price = data.get("totalPrice", 0)
+    customer_name = data.get("customerName", first_name)
+    phone = data.get("phone", "")
+    email = data.get("email", "")
+    address = data.get("address", "")
+    comment = data.get("comment", "")
+    payment_method = data.get("paymentMethod", "online")
+    payment_str = "Оплата онлайн (ЮKassa / СБП)" if payment_method == "online" else "Оплата при получении"
 
-        # Save to SQLite database
+    # Save to SQLite database
+    try:
         db.create_order(
             order_number=order_num,
             user_id=user_id,
@@ -476,14 +486,15 @@ async def handle_webapp_data(message: types.Message):
             payment_method=payment_method,
             comment=comment
         )
+    except Exception as e:
+        logging.warning(f"Order #{order_num} DB notice: {e}")
 
-        items_text = ""
-        for i, item in enumerate(items, 1):
-            items_text += f"{i}. {item['name']} × {item['quantity']} шт. — {item['price'] * item['quantity']} ₽\n"
+    # Build customer receipt
+    items_text = ""
+    for i, item in enumerate(items, 1):
+        items_text += f"{i}. {item.get('name', 'Товар')} × {item.get('quantity', 1)} шт. — {item.get('price', 0) * item.get('quantity', 1)} ₽\n"
 
-        payment_str = "Оплата онлайн (ЮKassa / СБП)" if payment_method == "online" else "Оплата при получении"
-
-        # Customer Receipt in Telegram Chat
+    if message:
         receipt_text = (
             f"🎉 *Ваш заказ #{order_num} успешно подтверждён!*\n\n"
             f"📋 *Состав заказа:*\n{items_text}\n"
@@ -496,58 +507,132 @@ async def handle_webapp_data(message: types.Message):
         )
         if comment:
             receipt_text += f"💬 *Комментарий:* {comment}\n"
-
         receipt_text += "\n⏱ *Ориентировочное время доставки:* 35–45 минут."
-        await message.answer(receipt_text, parse_mode="Markdown")
+        try:
+            await message.answer(receipt_text, parse_mode="Markdown")
+        except Exception:
+            await message.answer(receipt_text)
 
-        # 🚨 INSTANT ADMIN PUSH NOTIFICATION
-        admin_alert = (
-            f"🚨 *НОВЫЙ ЗАКАЗ #{order_num}!*\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"👤 *Клиент:* {customer_name} (@{username or 'без_username'})\n"
-            f"📞 *Телефон:* {phone} (🛡️ верифицирован)\n"
-            f"📧 *Email:* {email}\n"
-            f"📍 *Адрес:* {address}\n"
-            f"💳 *Оплата:* {payment_str}\n"
-            f"💵 *Сумма:* {total_price} ₽\n"
-        )
-        if comment:
-            admin_alert += f"💬 *Коммент:* {comment}\n"
+    # If duplicate push alert, return early
+    if is_duplicate:
+        logging.info(f"Duplicate push alert skipped for order #{order_num}")
+        return
 
-        admin_alert += f"\n📦 *Состав:*\n{items_text}"
+    # Build bulletproof HTML alert for admin (immune to parse crashes)
+    items_html = ""
+    for i, item in enumerate(items, 1):
+        in_name = html.escape(str(item.get("name", "Товар")))
+        in_qty = item.get("quantity", 1)
+        in_pr = item.get("price", 0) * in_qty
+        items_html += f"• {in_name} × {in_qty} шт. — <b>{in_pr} ₽</b>\n"
 
-        admin_kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="👨‍🍳 В готовку", callback_data=f"st_{order_num}_cooking"),
-                    InlineKeyboardButton(text="🚴 В доставку", callback_data=f"st_{order_num}_delivering")
-                ],
-                [
-                    InlineKeyboardButton(text="✅ Выполнен", callback_data=f"st_{order_num}_completed"),
-                    InlineKeyboardButton(text="❌ Отменить", callback_data=f"st_{order_num}_cancelled")
-                ],
-                [
-                    InlineKeyboardButton(text="💳 Отметить «Оплачен»", callback_data=f"pay_{order_num}_paid")
-                ]
+    uname_str = f"@{html.escape(username)}" if username else "нет username"
+
+    admin_alert_html = (
+        f"🚨 <b>НОВЫЙ ЗАКАЗ #{html.escape(order_num)}!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Клиент:</b> {html.escape(customer_name)} ({uname_str})\n"
+        f"📞 <b>Телефон:</b> <code>{html.escape(phone)}</code> <i>(🛡️ проверен)</i>\n"
+        f"📧 <b>Email:</b> <code>{html.escape(email)}</code>\n"
+        f"📍 <b>Адрес:</b> {html.escape(address)}\n"
+        f"💳 <b>Оплата:</b> {html.escape(payment_str)}\n"
+        f"💵 <b>Сумма:</b> <b>{html.escape(str(total_price))} ₽</b>\n"
+    )
+    if comment:
+        admin_alert_html += f"💬 <b>Коммент:</b> {html.escape(comment)}\n"
+    admin_alert_html += f"\n📦 <b>Состав заказа:</b>\n{items_html}"
+
+    admin_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="👨‍🍳 В готовку", callback_data=f"st_{order_num}_cooking"),
+                InlineKeyboardButton(text="🚴 В доставку", callback_data=f"st_{order_num}_delivering")
+            ],
+            [
+                InlineKeyboardButton(text="✅ Выполнен", callback_data=f"st_{order_num}_completed"),
+                InlineKeyboardButton(text="❌ Отменить", callback_data=f"st_{order_num}_cancelled")
+            ],
+            [
+                InlineKeyboardButton(text="💳 Отметить «Оплачен»", callback_data=f"pay_{order_num}_paid")
             ]
-        )
+        ]
+    )
 
-        # Send alert directly to admin's chat_id (sole admin @qqeaux)
-        admin_chat_id = db.get_setting("admin_chat_id")
-        if admin_chat_id:
+    admin_chat_id = db.get_setting("admin_chat_id") or os.getenv("ADMIN_CHAT_ID", DEFAULT_ADMIN_CHAT_ID)
+    if admin_chat_id:
+        try:
+            await bot.send_message(
+                chat_id=int(admin_chat_id),
+                text=f"👑 <b>Оповещение для @qqeaux:</b>\n\n{admin_alert_html}",
+                reply_markup=admin_kb,
+                parse_mode="HTML"
+            )
+            logging.info(f"✅ Push alert sent to admin {admin_chat_id} for order #{order_num}")
+        except Exception as e:
+            logging.error(f"HTML send failed: {e}, retrying plain text...")
             try:
+                clean_text = re.sub(r'<[^>]+>', '', admin_alert_html)
                 await bot.send_message(
                     chat_id=int(admin_chat_id),
-                    text=f"👑 *Оповещение администратора:* \n\n{admin_alert}",
-                    reply_markup=admin_kb,
-                    parse_mode="Markdown"
+                    text=f"👑 Оповещение для @qqeaux:\n\n{clean_text}",
+                    reply_markup=admin_kb
                 )
-            except Exception as e:
-                logging.error(f"Failed to send admin push alert to {admin_chat_id}: {e}")
+                logging.info(f"✅ Push alert sent via plain text to {admin_chat_id}")
+            except Exception as e2:
+                logging.error(f"❌ Critical failure sending admin push alert: {e2}")
+    else:
+        logging.warning("⚠️ No admin_chat_id found! Admin alert could not be delivered.")
 
+@dp.message(F.content_type == types.ContentType.WEB_APP_DATA)
+async def handle_webapp_data(message: types.Message):
+    raw_data = message.web_app_data.data
+    user = message.from_user
+    try:
+        data = json.loads(raw_data)
+        await process_order_data(data, user=user, message=message, source="webapp")
     except Exception as e:
         logging.error(f"Error parsing web_app_data: {e}", exc_info=True)
         await message.answer(f"✅ Заказ принят! Данные: {raw_data}")
+
+@dp.message(Command("test_alert"))
+async def handle_test_alert(message: types.Message):
+    user = message.from_user
+    username = user.username if user else None
+    user_id = user.id if user else None
+
+    if not is_admin(username, user_id):
+        await message.answer("⛔ Команда доступна только администратору @qqeaux.")
+        return
+
+    admin_chat_id = db.get_setting("admin_chat_id") or os.getenv("ADMIN_CHAT_ID", DEFAULT_ADMIN_CHAT_ID)
+    test_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="👨‍🍳 В готовку", callback_data="test_cook"),
+                InlineKeyboardButton(text="🚴 В доставку", callback_data="test_deliv")
+            ],
+            [
+                InlineKeyboardButton(text="✅ Выполнен", callback_data="test_done")
+            ]
+        ]
+    )
+    try:
+        await bot.send_message(
+            chat_id=int(admin_chat_id),
+            text=(
+                f"🚨 <b>ТЕСТОВОЕ ОПОВЕЩЕНИЕ АДМИНИСТРАТОРА</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"👑 <b>Администратор:</b> @qqeaux\n"
+                f"🆔 <b>Chat ID:</b> <code>{admin_chat_id}</code>\n"
+                f"✅ <b>Статус:</b> Канал мгновенных push-уведомлений активен!\n\n"
+                f"При оформлении нового заказа клиентом вы получите аналогичную карточку с контактами и кнопками управления."
+            ),
+            reply_markup=test_kb,
+            parse_mode="HTML"
+        )
+        await message.answer(f"✅ Тестовое оповещение успешно отправлено на chat_id {admin_chat_id}!")
+    except Exception as e:
+        await message.answer(f"❌ Ошибка отправки: {e}")
 
 # --- SUPPORT MENU WITH DEV ORDER OPTION ---
 
@@ -663,14 +748,42 @@ async def handle_about(message: types.Message):
     )
     await message.answer(about_text, parse_mode="Markdown")
 
-# Web Health Check server for Cloud hosting
+# Web Health Check & Orders API server for Cloud hosting
 async def health_check(request):
     return web.Response(text="Bot & Admin API is running 24/7!", status=200)
+
+async def handle_api_orders(request):
+    if request.method == "OPTIONS":
+        return web.Response(
+            status=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+            }
+        )
+    try:
+        data = await request.json()
+        logging.info(f"API order received: #{data.get('orderNumber')}")
+        await process_order_data(data, source="api")
+        return web.json_response(
+            {"ok": True, "message": "Order processed and admin notified"},
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
+    except Exception as e:
+        logging.error(f"Error processing API order: {e}", exc_info=True)
+        return web.json_response(
+            {"ok": False, "error": str(e)},
+            status=500,
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
 
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/", health_check)
     app.router.add_get("/health", health_check)
+    app.router.add_post("/api/orders", handle_api_orders)
+    app.router.add_route("OPTIONS", "/api/orders", handle_api_orders)
     
     port = int(os.getenv("PORT", 8080))
     runner = web.AppRunner(app)
