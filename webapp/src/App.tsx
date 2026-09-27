@@ -880,7 +880,7 @@ export function App() {
                       </div>
 
                       {/* Price & Add to Cart button */}
-                      <div className="flex items-center justify-between pt-1 border-t border-slate-800/40">
+                      <div className={`flex items-center justify-between pt-1 border-t ${isDarkTheme ? 'border-slate-800/40' : 'border-slate-100'}`}>
                         <div>
                           <div className={`text-sm font-black ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
                             {product.price} ₽
@@ -994,7 +994,7 @@ export function App() {
                     }`}
                   >
                     {/* Header */}
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-800/40">
+                    <div className={`flex items-center justify-between pb-2 border-b ${isDarkTheme ? 'border-slate-800/40' : 'border-slate-100'}`}>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-black text-sm">Заказ #{order.orderNumber}</span>
@@ -1003,7 +1003,7 @@ export function App() {
                             order.status === 'delivering' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 animate-pulse' :
                             order.status === 'cooking' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse' :
                             order.status === 'cancelled' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                            'bg-slate-800 text-slate-300'
+                            isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
                           }`}>
                             {order.status === 'completed' ? 'Доставлен' :
                              order.status === 'delivering' ? 'Курьер в пути' :
@@ -1011,14 +1011,14 @@ export function App() {
                              order.status === 'cancelled' ? 'Отменен' : 'Принят'}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">{order.createdAt}</div>
+                        <div className={`text-[11px] mt-0.5 ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>{order.createdAt}</div>
                       </div>
 
                       <div className="text-right">
                         <div className={`text-base font-black ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
                           {order.totalPrice} ₽
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
                           {order.paymentMethod === 'online' ? 'Оплачен онлайн' : 'Оплата при получении'}
                         </div>
                       </div>
@@ -1027,12 +1027,14 @@ export function App() {
                     {/* VISUAL ORDER STAGES STEPPER (if not cancelled) */}
                     {!isCancelled && (
                       <div className={`p-3 rounded-2xl border ${
-                        isDarkTheme ? 'bg-slate-950/70 border-slate-800/80' : 'bg-slate-50 border-slate-100'
+                        isDarkTheme ? 'bg-slate-950/70 border-slate-800/80' : 'bg-slate-50 border-slate-200'
                       }`}>
-                        <div className="text-[11px] font-bold text-slate-400 mb-2.5 flex items-center justify-between">
+                        <div className={`text-[11px] font-bold mb-2.5 flex items-center justify-between ${
+                          isDarkTheme ? 'text-slate-400' : 'text-slate-600'
+                        }`}>
                           <span>Стадия выполнения</span>
                           {order.status !== 'completed' && (
-                            <span className="text-amber-400 flex items-center gap-1 font-semibold">
+                            <span className="text-amber-500 flex items-center gap-1 font-semibold">
                               <Clock className="w-3 h-3" /> ~20–35 мин
                             </span>
                           )}
@@ -1040,7 +1042,9 @@ export function App() {
 
                         {/* Progress Bar with 4 nodes */}
                         <div className="relative flex items-center justify-between px-2 pt-1 pb-1">
-                          <div className="absolute left-6 right-6 top-4 h-1 bg-slate-800 -translate-y-1/2 z-0">
+                          <div className={`absolute left-6 right-6 top-4 h-1 -translate-y-1/2 z-0 ${
+                            isDarkTheme ? 'bg-slate-800' : 'bg-slate-200'
+                          }`}>
                             <div 
                               className="h-full bg-gradient-to-r from-amber-500 via-blue-500 to-emerald-500 transition-all duration-500" 
                               style={{ width: `${((stageIndex - 1) / 3) * 100}%` }}
@@ -1050,11 +1054,11 @@ export function App() {
                           {/* Stage 1: Created */}
                           <div className="relative z-10 flex flex-col items-center gap-1 text-center">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                              stageIndex >= 1 ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'bg-slate-800 text-slate-500'
+                              stageIndex >= 1 ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : (isDarkTheme ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500')
                             }`}>
                               <Check className="w-3.5 h-3.5" />
                             </div>
-                            <span className="text-[10px] font-semibold text-slate-400">Принят</span>
+                            <span className={`text-[10px] font-semibold ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>Принят</span>
                           </div>
 
                           {/* Stage 2: Cooking */}
@@ -1062,11 +1066,11 @@ export function App() {
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
                               stageIndex >= 2 
                                 ? (stageIndex === 2 ? 'bg-amber-500 text-slate-950 animate-bounce' : 'bg-blue-600 text-white')
-                                : 'bg-slate-800 text-slate-500'
+                                : (isDarkTheme ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500')
                             }`}>
                               <ChefHat className="w-3.5 h-3.5" />
                             </div>
-                            <span className="text-[10px] font-semibold text-slate-400">Кухня</span>
+                            <span className={`text-[10px] font-semibold ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>Кухня</span>
                           </div>
 
                           {/* Stage 3: Delivering */}
@@ -1074,21 +1078,21 @@ export function App() {
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
                               stageIndex >= 3 
                                 ? (stageIndex === 3 ? 'bg-blue-500 text-white animate-pulse' : 'bg-emerald-600 text-white')
-                                : 'bg-slate-800 text-slate-500'
+                                : (isDarkTheme ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500')
                             }`}>
                               <Bike className="w-3.5 h-3.5" />
                             </div>
-                            <span className="text-[10px] font-semibold text-slate-400">В пути</span>
+                            <span className={`text-[10px] font-semibold ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>В пути</span>
                           </div>
 
                           {/* Stage 4: Delivered */}
                           <div className="relative z-10 flex flex-col items-center gap-1 text-center">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                              stageIndex >= 4 ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30' : 'bg-slate-800 text-slate-500'
+                              stageIndex >= 4 ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30' : (isDarkTheme ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500')
                             }`}>
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             </div>
-                            <span className="text-[10px] font-semibold text-slate-400">Доставлен</span>
+                            <span className={`text-[10px] font-semibold ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>Доставлен</span>
                           </div>
                         </div>
                       </div>
@@ -1097,11 +1101,11 @@ export function App() {
                     {/* Items List in Order */}
                     <div className="space-y-1.5 text-xs">
                       {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-slate-300">
+                        <div key={idx} className={`flex justify-between items-center ${isDarkTheme ? 'text-slate-300' : 'text-slate-700'}`}>
                           <span className="truncate max-w-[220px]">
-                            {item.name} <span className="text-slate-500">× {item.quantity}</span>
+                            {item.name} <span className={isDarkTheme ? 'text-slate-500' : 'text-slate-400'}>× {item.quantity}</span>
                           </span>
-                          <span className="font-semibold text-slate-200">
+                          <span className={`font-semibold ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>
                             {item.price * item.quantity} ₽
                           </span>
                         </div>
@@ -1109,18 +1113,22 @@ export function App() {
                     </div>
 
                     {/* Delivery Address */}
-                    <div className="flex items-start gap-1.5 text-[11px] text-slate-400 pt-1">
-                      <MapPin className="w-3.5 h-3.5 shrink-0 text-blue-400 mt-0.5" />
+                    <div className={`flex items-start gap-1.5 text-[11px] pt-1 ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
+                      <MapPin className="w-3.5 h-3.5 shrink-0 text-blue-500 mt-0.5" />
                       <span className="truncate">{order.address}</span>
                     </div>
 
                     {/* Action Buttons: Repeat & Delete */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800/40">
+                    <div className={`flex items-center gap-2 pt-2 border-t ${isDarkTheme ? 'border-slate-800/40' : 'border-slate-100'}`}>
                       
                       {/* Repeat Order Button */}
                       <button
                         onClick={() => handleRepeatOrder(order)}
-                        className="flex-1 py-2 px-3 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 font-bold text-xs border border-blue-500/20 flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer"
+                        className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs border flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer ${
+                          isDarkTheme 
+                            ? 'bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border-blue-500/20' 
+                            : 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200'
+                        }`}
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         <span>Повторить заказ</span>
@@ -1130,7 +1138,11 @@ export function App() {
                       <button
                         onClick={() => setOrderToDelete(order)}
                         title="Удалить из истории"
-                        className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all active:scale-95 cursor-pointer"
+                        className={`p-2 rounded-xl border transition-all active:scale-95 cursor-pointer ${
+                          isDarkTheme 
+                            ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20' 
+                            : 'bg-red-50 hover:bg-red-100 text-red-600 border-red-200'
+                        }`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1147,25 +1159,25 @@ export function App() {
           <div className="space-y-4 animate-in fade-in duration-200">
             <div>
               <h2 className="text-base font-black tracking-tight">Поддержка & О проекте</h2>
-              <p className="text-xs text-slate-400">Служба заботы о клиентах и контакты разработчика</p>
+              <p className={`text-xs ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Служба заботы о клиентах и контакты разработчика</p>
             </div>
 
             {/* Turnkey Development Offer Banner */}
             <div className={`p-4 rounded-3xl border relative overflow-hidden ${
               isDarkTheme ? 'bg-gradient-to-br from-blue-950/60 to-slate-900 border-blue-800/40' : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200'
             }`}>
-              <div className="flex items-center gap-2 text-blue-400 font-extrabold text-xs mb-1">
+              <div className="flex items-center gap-2 text-blue-500 font-extrabold text-xs mb-1">
                 <Sparkles className="w-4 h-4" />
                 <span>РАЗРАБОТКА ПОД КЛЮЧ</span>
               </div>
-              <h3 className="text-sm font-black mb-1.5">Хотите такой же Telegram Mini App для бизнеса?</h3>
-              <p className="text-xs text-slate-400 leading-relaxed mb-3">
+              <h3 className={`text-sm font-black mb-1.5 ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>Хотите такой же Telegram Mini App для бизнеса?</h3>
+              <p className={`text-xs leading-relaxed mb-3 ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
                 Создаем полноценные цифровые рестораны, каталоги товаров и сервисы доставки с удобным приемом заказов, закрытой админкой и защитой от фрода.
               </p>
               
-              <div className="flex items-center gap-3 text-xs font-semibold mb-3.5 text-slate-300">
+              <div className={`flex items-center gap-3 text-xs font-semibold mb-3.5 ${isDarkTheme ? 'text-slate-300' : 'text-slate-700'}`}>
                 <span className="flex items-center gap-1">⏱ Срок: 3–5 дней</span>
-                <span className="flex items-center gap-1 text-amber-400 font-bold">💰 От 25 000 ₽</span>
+                <span className="flex items-center gap-1 text-amber-500 font-bold">💰 От 25 000 ₽</span>
               </div>
 
               <a
@@ -1184,29 +1196,37 @@ export function App() {
             <div className={`rounded-3xl border p-4 space-y-3 ${
               isDarkTheme ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}>
-              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-400">
-                <HelpCircle className="w-4 h-4 text-blue-400" />
+              <div className={`flex items-center gap-2 text-xs font-black uppercase tracking-wider ${
+                isDarkTheme ? 'text-slate-400' : 'text-slate-500'
+              }`}>
+                <HelpCircle className="w-4 h-4 text-blue-500" />
                 <span>Частые вопросы (FAQ)</span>
               </div>
 
               <div className="space-y-2.5 text-xs">
-                <div className="p-3 rounded-2xl bg-slate-950/40 border border-slate-800/60">
-                  <div className="font-bold text-slate-200 mb-1">Как работает отслеживание стадий?</div>
-                  <div className="text-slate-400 text-[11px] leading-relaxed">
+                <div className={`p-3.5 rounded-2xl border ${
+                  isDarkTheme ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className={`font-bold mb-1 ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>Как работает отслеживание стадий?</div>
+                  <div className={`text-[11px] leading-relaxed ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
                     После оформления заказа во вкладке «Мои заказы» появляется интерактивный таймлайн. При переходе на кухню или выезде курьера статус мгновенно обновляется прямо на экране.
                   </div>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-slate-950/40 border border-slate-800/60">
-                  <div className="font-bold text-slate-200 mb-1">Какие способы оплаты доступны?</div>
-                  <div className="text-slate-400 text-[11px] leading-relaxed">
+                <div className={`p-3.5 rounded-2xl border ${
+                  isDarkTheme ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className={`font-bold mb-1 ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>Какие способы оплаты доступны?</div>
+                  <div className={`text-[11px] leading-relaxed ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
                     Оплата производится при получении курьеру наличными или банковской картой.
                   </div>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-slate-950/40 border border-slate-800/60">
-                  <div className="font-bold text-slate-200 mb-1">Сколько занимает доставка?</div>
-                  <div className="text-slate-400 text-[11px] leading-relaxed">
+                <div className={`p-3.5 rounded-2xl border ${
+                  isDarkTheme ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className={`font-bold mb-1 ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>Сколько занимает доставка?</div>
+                  <div className={`text-[11px] leading-relaxed ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
                     Среднее время приготовления и доставки курьером по городу составляет от 30 до 45 минут в зависимости от адреса.
                   </div>
                 </div>
@@ -1214,11 +1234,11 @@ export function App() {
             </div>
 
             {/* About Tech Stack */}
-            <div className={`rounded-3xl border p-4 text-xs space-y-2 text-slate-400 ${
-              isDarkTheme ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+            <div className={`rounded-3xl border p-4 text-xs space-y-2 ${
+              isDarkTheme ? 'bg-slate-900/90 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600 shadow-xs'
             }`}>
-              <div className="font-bold text-slate-200">О технологическом стеке стенда:</div>
-              <ul className="space-y-1 list-disc list-inside text-[11px]">
+              <div className={`font-bold ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>О технологическом стеке стенда:</div>
+              <ul className={`space-y-1 list-disc list-inside text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
                 <li><b>Frontend:</b> React 19 + TypeScript + Tailwind CSS (Telegram WebApp SDK)</li>
                 <li><b>Backend:</b> Python 3 (Aiogram 3 + aiohttp REST API)</li>
                 <li><b>База данных:</b> SQLite (синхронизация заказов, КБЖУ, цены)</li>
@@ -1248,16 +1268,16 @@ export function App() {
 
             {/* Analytics Cards */}
             <div className="grid grid-cols-2 gap-2.5">
-              <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800">
-                <div className="text-[10px] font-bold text-slate-400 uppercase">Выручка всего</div>
-                <div className="text-base font-black text-amber-400 mt-0.5">
+              <div className={`p-3 rounded-2xl border ${isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
+                <div className={`text-[10px] font-bold uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Выручка всего</div>
+                <div className="text-base font-black text-amber-500 mt-0.5">
                   {orders.reduce((acc, o) => acc + (o.paymentStatus === 'paid' ? o.totalPrice : 0), 0)} ₽
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800">
-                <div className="text-[10px] font-bold text-slate-400 uppercase">Всего заказов</div>
-                <div className="text-base font-black text-blue-400 mt-0.5">
+              <div className={`p-3 rounded-2xl border ${isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
+                <div className={`text-[10px] font-bold uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Всего заказов</div>
+                <div className="text-base font-black text-blue-500 mt-0.5">
                   {orders.length}
                 </div>
               </div>
@@ -1265,36 +1285,40 @@ export function App() {
 
             {/* Manage Orders Section */}
             <div className="space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
+              <h3 className={`text-xs font-black uppercase tracking-wider ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
                 Управление заказами клиентов ({orders.length})
               </h3>
 
               {orders.map(order => (
                 <div 
                   key={order.orderNumber}
-                  className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2.5 text-xs"
+                  className={`p-3.5 rounded-2xl border space-y-2.5 text-xs ${
+                    isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs text-slate-900'
+                  }`}
                 >
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="font-black text-sm flex items-center gap-2">
                         <span>#{order.orderNumber}</span>
-                        <span className="font-semibold text-slate-300">{order.customerName}</span>
+                        <span className={`font-semibold ${isDarkTheme ? 'text-slate-300' : 'text-slate-700'}`}>{order.customerName}</span>
                       </div>
-                      <div className="text-blue-400 font-medium">{order.phone}</div>
-                      <div className="text-slate-400 text-[11px] truncate max-w-[200px]">{order.address}</div>
+                      <div className="text-blue-500 font-medium">{order.phone}</div>
+                      <div className={`text-[11px] truncate max-w-[200px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>{order.address}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-black text-amber-400">{order.totalPrice} ₽</div>
-                      <span className="text-[10px] text-slate-400 uppercase">{order.status}</span>
+                      <div className="font-black text-amber-500">{order.totalPrice} ₽</div>
+                      <span className={`text-[10px] uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>{order.status}</span>
                     </div>
                   </div>
 
                   {/* Status Change Buttons */}
-                  <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-800">
+                  <div className={`flex flex-wrap gap-1.5 pt-1 border-t ${isDarkTheme ? 'border-slate-800' : 'border-slate-100'}`}>
                     <button
                       onClick={() => handleAdminStatusChange(order.orderNumber || '', 'cooking')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                        order.status === 'cooking' ? 'bg-amber-500 text-slate-950 border-amber-500' : 'bg-slate-800 border-slate-700 text-slate-300'
+                        order.status === 'cooking' 
+                          ? 'bg-amber-500 text-slate-950 border-amber-500' 
+                          : isDarkTheme ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
                       👨‍🍳 В готовку
@@ -1302,7 +1326,9 @@ export function App() {
                     <button
                       onClick={() => handleAdminStatusChange(order.orderNumber || '', 'delivering')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                        order.status === 'delivering' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-800 border-slate-700 text-slate-300'
+                        order.status === 'delivering' 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : isDarkTheme ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
                       🚴 В доставку
@@ -1310,14 +1336,20 @@ export function App() {
                     <button
                       onClick={() => handleAdminStatusChange(order.orderNumber || '', 'completed')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                        order.status === 'completed' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-800 border-slate-700 text-slate-300'
+                        order.status === 'completed' 
+                          ? 'bg-emerald-600 text-white border-emerald-600' 
+                          : isDarkTheme ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
                       ✅ Выполнен
                     </button>
                     <button
                       onClick={() => setOrderToDelete(order)}
-                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 cursor-pointer"
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                        isDarkTheme 
+                          ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20' 
+                          : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                      }`}
                     >
                       🗑️ Удалить
                     </button>
@@ -1328,20 +1360,22 @@ export function App() {
 
             {/* Products & Prices Management */}
             <div className="space-y-3 pt-3">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
+              <h3 className={`text-xs font-black uppercase tracking-wider ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
                 Цены и наличие товаров
               </h3>
 
               {products.map(p => (
                 <div 
                   key={p.id}
-                  className="p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs"
+                  className={`p-3 rounded-2xl border flex items-center justify-between text-xs ${
+                    isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                  }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <img src={p.image} alt={p.name} className="w-10 h-10 rounded-xl object-cover" />
                     <div>
-                      <div className="font-bold line-clamp-1">{p.name}</div>
-                      <div className="text-[11px] text-amber-400 font-black">{p.price} ₽</div>
+                      <div className={`font-bold line-clamp-1 ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>{p.name}</div>
+                      <div className="text-[11px] text-amber-500 font-black">{p.price} ₽</div>
                     </div>
                   </div>
 
@@ -1352,7 +1386,9 @@ export function App() {
                           type="number"
                           value={editPriceVal}
                           onChange={e => setEditPriceVal(e.target.value)}
-                          className="w-16 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs"
+                          className={`w-16 px-2 py-1 rounded-lg border text-xs ${
+                            isDarkTheme ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                          }`}
                         />
                         <button
                           onClick={() => handleSavePrice(p.id)}
@@ -1367,7 +1403,9 @@ export function App() {
                           setEditingPriceId(p.id);
                           setEditPriceVal(String(p.price));
                         }}
-                        className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white"
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          isDarkTheme ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                        }`}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -1517,36 +1555,38 @@ export function App() {
             <div className="p-4 overflow-y-auto space-y-4">
               <div>
                 <h2 className="text-lg font-black tracking-tight">{selectedProduct.name}</h2>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                <p className={`text-xs mt-1 leading-relaxed ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
                   {selectedProduct.description}
                 </p>
               </div>
 
               {/* NUTRITION FACTS (КБЖУ) CARDS */}
               <div className={`p-3.5 rounded-2xl border ${
-                isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-100'
+                isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
-                <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+                <div className={`text-[11px] font-black uppercase tracking-wider mb-2.5 flex items-center justify-between ${
+                  isDarkTheme ? 'text-slate-400' : 'text-slate-600'
+                }`}>
                   <span>Энергетическая ценность (КБЖУ)</span>
-                  <span className="text-slate-500 font-semibold text-[10px]">на 100 г блюда</span>
+                  <span className={`font-semibold text-[10px] ${isDarkTheme ? 'text-slate-500' : 'text-slate-400'}`}>на 100 г блюда</span>
                 </div>
 
                 <div className="grid grid-cols-4 gap-2 text-center">
                   <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                    <div className="text-xs font-black text-amber-400">{selectedProduct.calories || 240}</div>
-                    <div className="text-[10px] text-slate-400">ккал</div>
+                    <div className="text-xs font-black text-amber-500">{selectedProduct.calories || 240}</div>
+                    <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>ккал</div>
                   </div>
                   <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
-                    <div className="text-xs font-black text-blue-400">{selectedProduct.proteins || 14} г</div>
-                    <div className="text-[10px] text-slate-400">белки</div>
+                    <div className="text-xs font-black text-blue-500">{selectedProduct.proteins || 14} г</div>
+                    <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>белки</div>
                   </div>
                   <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
-                    <div className="text-xs font-black text-rose-400">{selectedProduct.fats || 16} г</div>
-                    <div className="text-[10px] text-slate-400">жиры</div>
+                    <div className="text-xs font-black text-rose-500">{selectedProduct.fats || 16} г</div>
+                    <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>жиры</div>
                   </div>
                   <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                    <div className="text-xs font-black text-emerald-400">{selectedProduct.carbs || 22} г</div>
-                    <div className="text-[10px] text-slate-400">углеводы</div>
+                    <div className="text-xs font-black text-emerald-500">{selectedProduct.carbs || 22} г</div>
+                    <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>углеводы</div>
                   </div>
                 </div>
               </div>
@@ -1554,10 +1594,12 @@ export function App() {
               {/* INGREDIENTS LIST (СОСТАВ БЛЮДА) */}
               {selectedProduct.ingredients && selectedProduct.ingredients.length > 0 && (
                 <div className="space-y-1.5">
-                  <div className="text-xs font-black uppercase tracking-wider text-slate-400">
+                  <div className={`text-xs font-black uppercase tracking-wider ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
                     Состав блюда
                   </div>
-                  <ul className="text-xs text-slate-300 space-y-1 bg-slate-950/40 p-3 rounded-2xl border border-slate-800/60">
+                  <ul className={`text-xs space-y-1 p-3 rounded-2xl border ${
+                    isDarkTheme ? 'text-slate-300 bg-slate-950/40 border-slate-800/60' : 'text-slate-700 bg-slate-50 border-slate-200'
+                  }`}>
                     {selectedProduct.ingredients.map((ing, i) => (
                       <li key={i} className="flex items-start gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
@@ -1571,9 +1613,9 @@ export function App() {
               {/* ALLERGENS */}
               {selectedProduct.allergens && selectedProduct.allergens.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-bold text-slate-400">Аллергены:</span>
+                  <span className={`text-[11px] font-bold ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Аллергены:</span>
                   {selectedProduct.allergens.map((alg, i) => (
-                    <span key={i} className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-500/15 text-red-400 border border-red-500/25">
+                    <span key={i} className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-500/15 text-red-500 border border-red-500/25">
                       {alg}
                     </span>
                   ))}
@@ -1583,10 +1625,10 @@ export function App() {
 
             {/* Modal Bottom Footer / Add to Cart */}
             <div className={`p-4 border-t flex items-center justify-between gap-3 ${
-              isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-100'
+              isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200 shadow-md'
             }`}>
               <div>
-                <div className="text-[11px] text-slate-400">Цена:</div>
+                <div className={`text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Цена:</div>
                 <div className={`text-xl font-black ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
                   {selectedProduct.price} ₽
                 </div>
@@ -1634,14 +1676,16 @@ export function App() {
           }`}>
             
             {/* Drawer Header */}
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+            <div className={`p-4 border-b flex items-center justify-between ${isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="flex items-center gap-2 font-black text-sm">
                 <ShoppingBag className="w-4 h-4 text-blue-500" />
                 <span>Оформление заказа ({totalItemsCount})</span>
               </div>
               <button 
                 onClick={() => setIsCartOpen(false)}
-                className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 cursor-pointer"
+                className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
+                  isDarkTheme ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
+                }`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1653,39 +1697,43 @@ export function App() {
               {/* Cart Items list */}
               {cartItems.length === 0 ? (
                 <div className="text-center py-10 space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${
+                    isDarkTheme ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'
+                  }`}>
                     <ShoppingBag className="w-6 h-6" />
                   </div>
                   <div className="text-sm font-bold">Корзина пуста</div>
-                  <p className="text-xs text-slate-400">Выберите блюда в меню, чтобы сделать заказ</p>
+                  <p className={`text-xs ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Выберите блюда в меню, чтобы сделать заказ</p>
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  <div className="text-xs font-black uppercase text-slate-400">Ваш заказ:</div>
+                  <div className={`text-xs font-black uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Ваш заказ:</div>
                   {cartItems.map(item => (
                     <div 
                       key={item.product.id}
-                      className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-950/40 border border-slate-800/60 text-xs"
+                      className={`flex items-center justify-between p-2.5 rounded-2xl border text-xs ${
+                        isDarkTheme ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
+                      }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <img src={item.product.image} alt={item.product.name} className="w-10 h-10 rounded-xl object-cover" />
                         <div>
-                          <div className="font-bold line-clamp-1">{item.product.name}</div>
-                          <div className="text-amber-400 font-bold">{item.product.price} ₽</div>
+                          <div className={`font-bold line-clamp-1 ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>{item.product.name}</div>
+                          <div className="text-amber-500 font-bold">{item.product.price} ₽</div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 bg-blue-600 rounded-xl p-1 text-white">
                         <button 
                           onClick={() => removeFromCart(item.product.id)}
-                          className="w-5 h-5 rounded-lg bg-blue-700 flex items-center justify-center"
+                          className="w-5 h-5 rounded-lg bg-blue-700 flex items-center justify-center cursor-pointer"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
                         <span className="text-xs font-black px-1 min-w-[14px] text-center">{item.quantity}</span>
                         <button 
                           onClick={() => addToCart(item.product.id)}
-                          className="w-5 h-5 rounded-lg bg-blue-700 flex items-center justify-center"
+                          className="w-5 h-5 rounded-lg bg-blue-700 flex items-center justify-center cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -1698,8 +1746,8 @@ export function App() {
               {/* PROMOCODE SECTION */}
               {cartItems.length > 0 && (
                 <div className="space-y-1.5 pt-2">
-                  <div className="text-xs font-black uppercase text-slate-400 flex items-center gap-1">
-                    <Tag className="w-3.5 h-3.5 text-blue-400" />
+                  <div className={`text-xs font-black uppercase flex items-center gap-1 ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <Tag className="w-3.5 h-3.5 text-blue-500" />
                     <span>Промокод на скидку</span>
                   </div>
 
@@ -1709,23 +1757,25 @@ export function App() {
                       value={promoCodeInput}
                       onChange={e => setPromoCodeInput(e.target.value)}
                       placeholder="Введите код (например, VIBE20)"
-                      className="flex-1 px-3 py-2 rounded-xl text-xs bg-slate-950 border border-slate-800 focus:outline-none focus:border-blue-500 uppercase"
+                      className={`flex-1 px-3 py-2 rounded-xl text-xs uppercase border focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white'
+                      }`}
                     />
                     <button
                       type="button"
                       onClick={handleApplyPromo}
-                      className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs"
+                      className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer"
                     >
                       Применить
                     </button>
                   </div>
                   {appliedPromo && (
-                    <div className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                    <div className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1">
                       <Check className="w-3.5 h-3.5" /> Промокод {appliedPromo.code} применен! (-{discountAmount} ₽)
                     </div>
                   )}
                   {promoError && (
-                    <div className="text-[11px] text-red-400 font-medium">
+                    <div className="text-[11px] text-red-500 font-medium">
                       {promoError}
                     </div>
                   )}
@@ -1735,8 +1785,8 @@ export function App() {
               {/* CUTLERY (ПРИБОРЫ) */}
               {cartItems.length > 0 && (
                 <div className="space-y-1.5 pt-2">
-                  <div className="text-xs font-black uppercase text-slate-400 flex items-center gap-1">
-                    <Utensils className="w-3.5 h-3.5 text-blue-400" />
+                  <div className={`text-xs font-black uppercase flex items-center gap-1 ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <Utensils className="w-3.5 h-3.5 text-blue-500" />
                     <span>Приборы и салфетки (бесплатно)</span>
                   </div>
                   <div className="flex gap-2">
@@ -1745,10 +1795,10 @@ export function App() {
                         key={n}
                         type="button"
                         onClick={() => setCutleryCount(n)}
-                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                           cutleryCount === n 
-                            ? 'bg-blue-600 text-white border-blue-600' 
-                            : 'bg-slate-950 border-slate-800 text-slate-400'
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
+                            : isDarkTheme ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                         }`}
                       >
                         {n} перс.
@@ -1761,7 +1811,7 @@ export function App() {
               {/* COURIER TIPS (ЧАЕВЫЕ КУРЬЕРУ) */}
               {cartItems.length > 0 && (
                 <div className="space-y-1.5 pt-2">
-                  <div className="text-xs font-black uppercase text-slate-400">
+                  <div className={`text-xs font-black uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
                     Благодарность курьеру (чаевые)
                   </div>
                   <div className="flex gap-2">
@@ -1770,10 +1820,10 @@ export function App() {
                         key={tip}
                         type="button"
                         onClick={() => setTipsAmount(tip)}
-                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                           tipsAmount === tip 
-                            ? 'bg-amber-500 text-slate-950 border-amber-500' 
-                            : 'bg-slate-950 border-slate-800 text-slate-400'
+                            ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs' 
+                            : isDarkTheme ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                         }`}
                       >
                         {tip === 0 ? 'Без чаевых' : `+${tip} ₽`}
@@ -1786,7 +1836,7 @@ export function App() {
               {/* CUSTOMER CONTACT FORM */}
               {cartItems.length > 0 && (
                 <form id="order-form" onSubmit={handleSubmitOrder} className="space-y-3 pt-3">
-                  <div className="text-xs font-black uppercase text-slate-400">Контакты и доставка:</div>
+                  <div className={`text-xs font-black uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Контакты и доставка:</div>
 
                   {/* Name */}
                   <div>
@@ -1795,12 +1845,12 @@ export function App() {
                       value={customerName}
                       onChange={e => setCustomerName(e.target.value)}
                       placeholder="Имя и Фамилия получателя *"
-                      className={`w-full p-3 rounded-xl border text-xs bg-slate-950 ${
-                        formErrors.customerName ? 'border-red-500' : 'border-slate-800'
-                      }`}
+                      className={`w-full p-3 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 text-white placeholder:text-slate-600' : 'bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white'
+                      } ${formErrors.customerName ? 'border-red-500' : isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}
                     />
                     {formErrors.customerName && (
-                      <span className="text-[10px] text-red-400 mt-1 block">{formErrors.customerName}</span>
+                      <span className="text-[10px] text-red-500 mt-1 block">{formErrors.customerName}</span>
                     )}
                   </div>
 
@@ -1811,12 +1861,12 @@ export function App() {
                       value={phone}
                       onChange={e => setPhone(formatRussianPhone(e.target.value))}
                       placeholder="+7 (9XX) XXX-XX-XX *"
-                      className={`w-full p-3 rounded-xl border text-xs bg-slate-950 font-mono ${
-                        formErrors.phone ? 'border-red-500' : 'border-slate-800'
-                      }`}
+                      className={`w-full p-3 rounded-xl border text-xs font-mono focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 text-white placeholder:text-slate-600' : 'bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white'
+                      } ${formErrors.phone ? 'border-red-500' : isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}
                     />
                     {formErrors.phone && (
-                      <span className="text-[10px] text-red-400 mt-1 block">{formErrors.phone}</span>
+                      <span className="text-[10px] text-red-500 mt-1 block">{formErrors.phone}</span>
                     )}
                   </div>
 
@@ -1827,12 +1877,12 @@ export function App() {
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       placeholder="Email для электронного чека *"
-                      className={`w-full p-3 rounded-xl border text-xs bg-slate-950 ${
-                        formErrors.email ? 'border-red-500' : 'border-slate-800'
-                      }`}
+                      className={`w-full p-3 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 text-white placeholder:text-slate-600' : 'bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white'
+                      } ${formErrors.email ? 'border-red-500' : isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}
                     />
                     {formErrors.email && (
-                      <span className="text-[10px] text-red-400 mt-1 block">{formErrors.email}</span>
+                      <span className="text-[10px] text-red-500 mt-1 block">{formErrors.email}</span>
                     )}
                   </div>
 
@@ -1843,24 +1893,26 @@ export function App() {
                       value={address}
                       onChange={e => setAddress(e.target.value)}
                       placeholder="Адрес доставки (город, улица, дом, кв.) *"
-                      className={`w-full p-3 rounded-xl border text-xs bg-slate-950 ${
-                        formErrors.address ? 'border-red-500' : 'border-slate-800'
-                      }`}
+                      className={`w-full p-3 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 text-white placeholder:text-slate-600' : 'bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white'
+                      } ${formErrors.address ? 'border-red-500' : isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}
                     />
                     {formErrors.address && (
-                      <span className="text-[10px] text-red-400 mt-1 block">{formErrors.address}</span>
+                      <span className="text-[10px] text-red-500 mt-1 block">{formErrors.address}</span>
                     )}
 
                     {/* Recent Addresses Chips */}
                     {savedAddresses.length > 0 && (
                       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        <span className="text-[10px] text-slate-500">Недавние:</span>
+                        <span className={`text-[10px] ${isDarkTheme ? 'text-slate-500' : 'text-slate-400'}`}>Недавние:</span>
                         {savedAddresses.map((addr, idx) => (
                           <button
                             key={idx}
                             type="button"
                             onClick={() => setAddress(addr)}
-                            className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 truncate max-w-[140px]"
+                            className={`text-[10px] px-2 py-0.5 rounded-md truncate max-w-[140px] cursor-pointer transition-colors ${
+                              isDarkTheme ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                            }`}
                           >
                             {addr}
                           </button>
@@ -1876,18 +1928,22 @@ export function App() {
                       value={comment}
                       onChange={e => setComment(e.target.value)}
                       placeholder="Комментарий (код домофона, этаж)"
-                      className="w-full p-3 rounded-xl border border-slate-800 text-xs bg-slate-950"
+                      className={`w-full p-3 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white'
+                      }`}
                     />
                   </div>
 
                   {/* Payment Method Notice */}
-                  <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center gap-2.5 text-xs text-slate-300">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                  <div className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs ${
+                    isDarkTheme ? 'border-slate-800 bg-slate-950/60 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'
+                  }`}>
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
                       <Banknote className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="font-bold text-slate-200">Оплата при получении</div>
-                      <div className="text-[11px] text-slate-400">Наличными или банковской картой курьеру</div>
+                      <div className={`font-bold ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>Оплата при получении</div>
+                      <div className={`text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Наличными или банковской картой курьеру</div>
                     </div>
                   </div>
                 </form>
@@ -1896,27 +1952,31 @@ export function App() {
 
             {/* Drawer Footer */}
             {cartItems.length > 0 && (
-              <div className="p-4 border-t border-slate-800 bg-slate-950 space-y-2.5">
+              <div className={`p-4 border-t space-y-2.5 ${
+                isDarkTheme ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-white shadow-lg'
+              }`}>
                 <div className="space-y-1 text-xs">
-                  <div className="flex justify-between text-slate-400">
+                  <div className={`flex justify-between ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
                     <span>Сумма блюд:</span>
                     <span>{subtotalPrice} ₽</span>
                   </div>
                   {discountAmount > 0 && (
-                    <div className="flex justify-between text-emerald-400 font-semibold">
+                    <div className="flex justify-between text-emerald-500 font-semibold">
                       <span>Скидка по промокоду:</span>
                       <span>-{discountAmount} ₽</span>
                     </div>
                   )}
                   {tipsAmount > 0 && (
-                    <div className="flex justify-between text-amber-400">
+                    <div className="flex justify-between text-amber-500 font-semibold">
                       <span>Чаевые курьеру:</span>
                       <span>+{tipsAmount} ₽</span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center text-sm font-black pt-1 border-t border-slate-800">
-                    <span className="text-white">Итого:</span>
-                    <span className="text-amber-400 text-lg">{totalPrice} ₽</span>
+                  <div className={`flex justify-between items-center text-sm font-black pt-1 border-t ${
+                    isDarkTheme ? 'border-slate-800 text-white' : 'border-slate-100 text-slate-900'
+                  }`}>
+                    <span>Итого:</span>
+                    <span className="text-amber-500 text-lg">{totalPrice} ₽</span>
                   </div>
                 </div>
 
@@ -1936,18 +1996,22 @@ export function App() {
       {/* ================= ORDER DELETE CONFIRMATION MODAL ================= */}
       {orderToDelete && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in zoom-in-95">
-          <div className="w-full max-w-sm rounded-3xl p-5 bg-slate-900 border border-slate-800 text-center space-y-3 shadow-2xl">
-            <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center mx-auto">
+          <div className={`w-full max-w-sm rounded-3xl p-5 border text-center space-y-3 shadow-2xl ${
+            isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
             <h3 className="text-sm font-black">Удалить заказ #{orderToDelete.orderNumber}?</h3>
-            <p className="text-xs text-slate-400">
+            <p className={`text-xs ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
               Заказ будет удален из истории. Это действие нельзя отменить.
             </p>
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setOrderToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                className={`flex-1 py-2.5 rounded-xl font-bold text-xs cursor-pointer transition-colors ${
+                  isDarkTheme ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                }`}
               >
                 Отмена
               </button>
@@ -1965,33 +2029,37 @@ export function App() {
       {/* ================= ORDER SUCCESS MODAL ================= */}
       {orderSuccess && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in zoom-in-95">
-          <div className="w-full max-w-sm rounded-3xl p-6 bg-slate-900 border border-slate-800 text-center shadow-2xl space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/30">
+          <div className={`w-full max-w-sm rounded-3xl p-6 border text-center shadow-2xl space-y-4 ${
+            isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto border border-emerald-500/30">
               <CheckCircle2 className="w-10 h-10" />
             </div>
             <div>
               <h2 className="text-lg font-black">Заказ #{orderSuccess.orderNumber} принят!</h2>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className={`text-xs mt-1 ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
                 Шеф-повар уже получил ваш заказ. Вы можете следить за стадиями приготовления во вкладке «Мои заказы».
               </p>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-left text-xs space-y-1.5">
+            <div className={`p-3.5 rounded-2xl border text-left text-xs space-y-1.5 ${
+              isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
               <div className="flex justify-between">
-                <span className="text-slate-400">Получатель:</span>
-                <span className="font-semibold text-slate-200">{orderSuccess.customerName}</span>
+                <span className={isDarkTheme ? 'text-slate-400' : 'text-slate-500'}>Получатель:</span>
+                <span className={`font-semibold ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>{orderSuccess.customerName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Телефон:</span>
-                <span className="font-medium text-blue-400">{orderSuccess.phone}</span>
+                <span className={isDarkTheme ? 'text-slate-400' : 'text-slate-500'}>Телефон:</span>
+                <span className="font-medium text-blue-500">{orderSuccess.phone}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Сумма:</span>
-                <span className="font-black text-amber-400">{orderSuccess.totalPrice} ₽</span>
+                <span className={isDarkTheme ? 'text-slate-400' : 'text-slate-500'}>Сумма:</span>
+                <span className="font-black text-amber-500">{orderSuccess.totalPrice} ₽</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Адрес:</span>
-                <span className="font-medium truncate max-w-[180px]">{orderSuccess.address}</span>
+                <span className={isDarkTheme ? 'text-slate-400' : 'text-slate-500'}>Адрес:</span>
+                <span className={`font-medium truncate max-w-[180px] ${isDarkTheme ? 'text-slate-300' : 'text-slate-800'}`}>{orderSuccess.address}</span>
               </div>
             </div>
 
@@ -2001,7 +2069,7 @@ export function App() {
                 setOrderSuccess(null);
                 setActiveTab('orders');
               }}
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer"
+              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-md shadow-blue-500/20"
             >
               Перейти к отслеживанию
             </button>
