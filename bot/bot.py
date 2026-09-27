@@ -50,9 +50,10 @@ async def handle_start(message: types.Message):
 
     # If this is @qqeaux, permanently store their chat_id for instant order alerts
     if is_admin(username, user_id) and user_id:
-        db.set_setting("admin_chat_id", str(user_id))
-        db.set_setting("admin_username", str(username or "qqeaux"))
-        logging.info(f"Registered admin chat_id: {user_id} for user @{username}")
+        if str(user_id) != "5847598677":
+            db.set_setting("admin_chat_id", str(user_id))
+            db.set_setting("admin_username", "qqeaux")
+            logging.info(f"Registered admin chat_id: {user_id} for user @{username}")
 
     welcome_text = (
         f"👋 <b>Здравствуйте, {html.escape(user_name)}!</b>\n\n"
@@ -582,6 +583,13 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
 
     admin_chat_id = db.get_setting("admin_chat_id") or os.getenv("ADMIN_CHAT_ID", DEFAULT_ADMIN_CHAT_ID)
     admin_user = db.get_setting("admin_username")
+
+    # Strictly block 5847598677 (@eccdk) from receiving any admin order notifications
+    if str(admin_chat_id).strip() == "5847598677":
+        logging.warning("⚠️ Blocked notification: admin_chat_id was set to 5847598677 (@eccdk). Clearing.")
+        db.set_setting("admin_chat_id", "")
+        admin_chat_id = None
+
     # Strictly ensure notifications only go to @qqeaux
     if admin_user and admin_user.lower() != "qqeaux":
         admin_chat_id = None
@@ -949,6 +957,18 @@ async def handle_toggle_product(request):
         logging.error(f"Error toggling product: {e}")
         return web.json_response({"ok": False, "error": str(e)}, status=500, headers={"Access-Control-Allow-Origin": "*"})
 
+async def handle_debug_admin(request):
+    return web.json_response({
+        "db_admin_chat_id": db.get_setting("admin_chat_id"),
+        "db_admin_username": db.get_setting("admin_username"),
+        "default_admin_chat_id": DEFAULT_ADMIN_CHAT_ID
+    }, headers={"Access-Control-Allow-Origin": "*"})
+
+async def handle_reset_admin_chat(request):
+    db.set_setting("admin_chat_id", "")
+    db.set_setting("admin_username", "")
+    return web.json_response({"ok": True, "message": "Admin credentials reset. Please send /start from @qqeaux account."}, headers={"Access-Control-Allow-Origin": "*"})
+
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/", health_check)
@@ -966,6 +986,10 @@ async def start_web_server():
     app.router.add_post("/api/products/price", handle_update_price)
     app.router.add_post("/api/products/toggle", handle_toggle_product)
 
+    # Admin Debug / Reset API
+    app.router.add_get("/api/admin/debug", handle_debug_admin)
+    app.router.add_post("/api/admin/reset", handle_reset_admin_chat)
+
     # CORS Preflight
     app.router.add_route("OPTIONS", "/{tail:.*}", handle_cors_options)
     
@@ -978,10 +1002,13 @@ async def start_web_server():
 
 async def main():
     logging.info("🤖 Starting Telegram Bot with Admin Notifications & Anti-Fraud...")
-    # Clean up any lingering admin setting if it was not registered by @qqeaux
-    if db.get_setting("admin_username") != "qqeaux":
+    # Clean up any lingering admin setting if it was tied to 5847598677 or not @qqeaux
+    cur_admin_id = str(db.get_setting("admin_chat_id") or "").strip()
+    cur_admin_user = str(db.get_setting("admin_username") or "").strip().lower()
+    if cur_admin_id == "5847598677" or (cur_admin_user and cur_admin_user != "qqeaux"):
         db.set_setting("admin_chat_id", "")
         db.set_setting("admin_username", "")
+        logging.info("🧹 Purged invalid admin credentials (5847598677) from DB")
 
     await start_web_server()
     await bot.delete_webhook(drop_pending_updates=True)

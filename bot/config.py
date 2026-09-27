@@ -10,7 +10,8 @@ WEBAPP_URL = os.getenv("WEBAPP_URL", "https://kukes-misis.github.io/tg-mini-app/
 ADMIN_USERNAMES = ["qqeaux"]
 
 # Optional Admin Chat ID override via environment variable on Render
-DEFAULT_ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "")
+raw_admin_id = os.getenv("ADMIN_CHAT_ID", "").strip()
+DEFAULT_ADMIN_CHAT_ID = "" if raw_admin_id == "5847598677" else raw_admin_id
 
 def is_admin(username: str | None, user_id: int | None = None) -> bool:
     # Strictly @qqeaux is the only admin forever
