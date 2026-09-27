@@ -159,10 +159,10 @@ async def cb_admin_orders(callback: types.CallbackQuery):
     orders = db.get_orders(limit=10)
     if not orders:
         kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_refresh")]])
-        await callback.message.edit_text("📦 *Заказов пока нет.* Как только клиент оформит заказ, он появится здесь!", reply_markup=kb, parse_mode="Markdown")
+        await callback.message.edit_text("📦 <b>Заказов пока нет.</b> Как только клиент оформит заказ, он появится здесь!", reply_markup=kb, parse_mode="HTML")
         return
 
-    text = "📦 *Последние заказы:*\n\n"
+    text = "📦 <b>Последние заказы:</b>\n\n"
     buttons = []
     status_icons = {
         "new": "🟡 Новый",
@@ -174,7 +174,7 @@ async def cb_admin_orders(callback: types.CallbackQuery):
 
     for o in orders[:8]:
         st = status_icons.get(o['status'], o['status'])
-        text += f"• *#{o['order_number']}* ({st}) — {o['total_price']} ₽ | {o['user_name']}\n"
+        text += f"• <b>#{html.escape(str(o['order_number']))}</b> ({st}) — {o['total_price']} ₽ | {html.escape(str(o['user_name'] or ''))}\n"
         buttons.append([
             InlineKeyboardButton(
                 text=f"Заказ #{o['order_number']} ({st})",
@@ -185,7 +185,7 @@ async def cb_admin_orders(callback: types.CallbackQuery):
     buttons.append([InlineKeyboardButton(text="⬅️ В главное меню", callback_data="admin_refresh")])
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     if callback.message:
-        await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
 
 # Admin: View Single Order Detail
 @dp.callback_query(F.data.startswith("order_view_"))
@@ -216,17 +216,17 @@ async def cb_order_view(callback: types.CallbackQuery):
     pay_badge = "✅ Оплачен курьеру" if order.get('payment_status') == 'paid' else "⏳ Оплата при получении"
 
     msg = (
-        f"📋 *Детали заказа #{order['order_number']}*\n\n"
-        f"👤 *Клиент:* {order.get('user_name')} (@{order.get('username') or 'нет'})\n"
-        f"📞 *Телефон:* {order.get('phone')}\n"
-        f"📧 *Email:* {order.get('email') or 'не указан'}\n"
-        f"📍 *Адрес:* {order.get('address')}\n"
-        f"💬 *Комментарий:* {order.get('comment') or 'нет'}\n\n"
-        f"📦 *Состав заказа:*\n{items_str}\n"
-        f"💵 *Сумма:* {order['total_price']} ₽\n"
-        f"💳 *Статус оплаты:* {pay_badge}\n"
-        f"⚙️ *Статус доставки:* {status_labels.get(order['status'], order['status'])}\n"
-        f"🕒 *Создан:* {order.get('created_at')}\n"
+        f"📋 <b>Детали заказа #{html.escape(str(order['order_number']))}</b>\n\n"
+        f"👤 <b>Клиент:</b> {html.escape(str(order.get('user_name') or ''))} (@{html.escape(str(order.get('username') or 'нет'))})\n"
+        f"📞 <b>Телефон:</b> {html.escape(str(order.get('phone') or ''))}\n"
+        f"📧 <b>Email:</b> {html.escape(str(order.get('email') or 'не указан'))}\n"
+        f"📍 <b>Адрес:</b> {html.escape(str(order.get('address') or ''))}\n"
+        f"💬 <b>Комментарий:</b> {html.escape(str(order.get('comment') or 'нет'))}\n\n"
+        f"📦 <b>Состав заказа:</b>\n{items_str}\n"
+        f"💵 <b>Сумма:</b> {order['total_price']} ₽\n"
+        f"💳 <b>Статус оплаты:</b> {pay_badge}\n"
+        f"⚙️ <b>Статус доставки:</b> {status_labels.get(order['status'], order['status'])}\n"
+        f"🕒 <b>Создан:</b> {html.escape(str(order.get('created_at') or ''))}\n"
     )
 
     kb = InlineKeyboardMarkup(
@@ -248,7 +248,7 @@ async def cb_order_view(callback: types.CallbackQuery):
         ]
     )
     if callback.message:
-        await callback.message.edit_text(msg, reply_markup=kb, parse_mode="Markdown")
+        await callback.message.edit_text(msg, reply_markup=kb, parse_mode="HTML")
 
 # Admin: Update Order Status
 @dp.callback_query(F.data.startswith("st_"))
@@ -459,6 +459,11 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
     order_num = str(data.get("orderNumber") or random.randint(1000, 9999))
     now = time.time()
 
+    # Clean up stale entries older than 5 minutes
+    stale_keys = [k for k, v in PROCESSED_ORDERS.items() if now - v > 300]
+    for k in stale_keys:
+        del PROCESSED_ORDERS[k]
+
     # Deduplicate alerts within 60s
     is_duplicate = False
     if order_num in PROCESSED_ORDERS and (now - PROCESSED_ORDERS[order_num]) < 60:
@@ -627,6 +632,9 @@ async def handle_test_alert(message: types.Message):
         return
 
     admin_chat_id = db.get_setting("admin_chat_id") or os.getenv("ADMIN_CHAT_ID", DEFAULT_ADMIN_CHAT_ID)
+    if not admin_chat_id or not admin_chat_id.strip():
+        await message.answer("⚠️ Admin chat ID не найден. Отправьте /start чтобы зарегистрировать.")
+        return
     test_kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -655,6 +663,19 @@ async def handle_test_alert(message: types.Message):
         await message.answer(f"✅ Тестовое оповещение успешно отправлено на chat_id {admin_chat_id}!")
     except Exception as e:
         await message.answer(f"❌ Ошибка отправки: {e}")
+
+@dp.message(Command("clear_orders"))
+async def handle_clear_orders(message: types.Message):
+    user = message.from_user
+    username = user.username if user else None
+    user_id = user.id if user else None
+
+    if not is_admin(username, user_id):
+        await message.answer("⛔ Команда доступна только администратору @qqeaux.")
+        return
+
+    count = db.clear_all_orders()
+    await message.answer(f"🗑️ <b>История заказов полностью очищена!</b>\nУдалено записей: {count}", parse_mode="HTML")
 
 # --- SUPPORT MENU WITH DEV ORDER OPTION ---
 
@@ -822,6 +843,19 @@ async def handle_delete_order(request):
         logging.error(f"Error deleting order: {e}")
         return web.json_response({"ok": False, "error": str(e)}, status=500, headers={"Access-Control-Allow-Origin": "*"})
 
+async def handle_clear_all_orders(request):
+    try:
+        data = await request.json()
+        admin_username = data.get("adminUsername", "").lower().replace("@", "").strip()
+        if admin_username != "qqeaux":
+            return web.json_response({"ok": False, "error": "Forbidden: only @qqeaux can clear orders"}, status=403, headers={"Access-Control-Allow-Origin": "*"})
+        count = db.clear_all_orders()
+        logging.info(f"Admin cleared all orders. Total deleted: {count}")
+        return web.json_response({"ok": True, "deletedCount": count}, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        logging.error(f"Error clearing all orders: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=500, headers={"Access-Control-Allow-Origin": "*"})
+
 async def handle_update_order_status(request):
     try:
         data = await request.json()
@@ -924,6 +958,7 @@ async def start_web_server():
     app.router.add_get("/api/orders", handle_get_orders)
     app.router.add_post("/api/orders", handle_api_orders)
     app.router.add_post("/api/orders/delete", handle_delete_order)
+    app.router.add_post("/api/orders/clear-all", handle_clear_all_orders)
     app.router.add_post("/api/orders/status", handle_update_order_status)
 
     # Products API

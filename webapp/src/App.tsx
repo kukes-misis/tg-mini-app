@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   ShoppingBag, 
   Search, 
@@ -11,38 +11,108 @@ import {
   Mail, 
   CheckCircle2, 
   Sparkles,
-  CreditCard, 
   Banknote, 
   Package, 
-  Layers, 
   Edit2, 
   Check, 
-  TrendingUp, 
-  ArrowLeft, 
-  ShieldAlert, 
   Sun, 
-  Moon,
-  Heart,
-  Trash2,
-  RotateCcw,
-  HelpCircle,
-  ChefHat,
-  Bike,
-  Flame,
-  Tag,
-  Utensils,
-  AlertCircle,
-  ExternalLink,
-  MessageCircle,
-  SlidersHorizontal,
-  ChevronRight
+  Moon, 
+  Heart, 
+  Trash2, 
+  RotateCcw, 
+  HelpCircle, 
+  ChefHat, 
+  Bike, 
+  Flame, 
+  Tag, 
+  Utensils, 
+  ExternalLink, 
+  MessageCircle, 
+  ChevronRight 
 } from 'lucide-react';
 import { CATEGORIES, PRODUCTS as INITIAL_PRODUCTS } from './data/products';
 import { Product, CartItem, OrderData, OrderStatus } from './types';
 
-// --- HELPERS ---
+// --- CONFIG & HELPERS ---
 
 const API_BASE_URL = 'https://tg-mini-app-se10.onrender.com';
+
+// Web Audio API Synthesizer for rich, native audio feedback
+function playSound(type: 'add' | 'remove' | 'success' | 'status' | 'error') {
+  try {
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+
+    if (type === 'add') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.07);
+      gain.gain.setValueAtTime(0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.07);
+    } else if (type === 'remove') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(220, now + 0.06);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    } else if (type === 'success') {
+      const freqs = [523.25, 659.25, 783.99];
+      freqs.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const start = now + idx * 0.06;
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.16, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.24);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.24);
+      });
+    } else if (type === 'status') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1318.51, now);
+      osc.frequency.exponentialRampToValueAtTime(987.77, now + 0.2);
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    } else if (type === 'error') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(160, now);
+      osc.frequency.setValueAtTime(130, now + 0.06);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    }
+  } catch {
+    // AudioContext blocked or unsupported; fallback silently
+  }
+}
 
 function formatRussianPhone(raw: string): string {
   let digits = raw.replace(/\D/g, '');
@@ -107,47 +177,6 @@ function getMoscowTimeInfo(): { hour: number; timeStr: string; isDaytime: boolea
   }
 }
 
-// Initial demo orders
-const INITIAL_DEMO_ORDERS: OrderData[] = [
-  {
-    id: 'ord-1024',
-    orderNumber: '1024',
-    customerName: 'Алексей Смирнов',
-    phone: '+7 (926) 450-12-88',
-    email: 'alex.smirnov@yandex.ru',
-    address: 'г. Москва, ул. Тверская, д. 14, кв. 32',
-    comment: 'Код домофона 32К',
-    totalPrice: 1760,
-    paymentMethod: 'online',
-    paymentStatus: 'paid',
-    status: 'cooking',
-    createdAt: '15 минут назад',
-    items: [
-      { id: 'b1', name: 'Блэк Ангус Бургер', quantity: 2, price: 490 },
-      { id: 'p1', name: 'Пицца Пепперони Премиум', quantity: 1, price: 680 },
-      { id: 'd1', name: 'Лимонад Малина-Маракуйя', quantity: 1, price: 260 }
-    ]
-  },
-  {
-    id: 'ord-1023',
-    orderNumber: '1023',
-    customerName: 'Мария Васильева',
-    phone: '+7 (916) 880-99-11',
-    email: 'mariya.v@mail.ru',
-    address: 'г. Москва, Ленинский проспект, 45, корп. 2, кв. 10',
-    comment: 'Позвонить за 5 минут',
-    totalPrice: 900,
-    paymentMethod: 'cash',
-    paymentStatus: 'pending',
-    status: 'delivering',
-    createdAt: '35 минут назад',
-    items: [
-      { id: 'b2', name: 'Трюфельный Чизбургер', quantity: 1, price: 590 },
-      { id: 'd2', name: 'Матча Латте на кокосовом', quantity: 1, price: 310 }
-    ]
-  }
-];
-
 export function App() {
   // Navigation tabs: 'menu' | 'orders' | 'support' | 'admin'
   const [activeTab, setActiveTab] = useState<'menu' | 'orders' | 'support' | 'admin'>('menu');
@@ -187,17 +216,22 @@ export function App() {
   const [cart, setCart] = useState<{ [productId: string]: number }>({});
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Orders
+  // Orders — Clean state without demo orders
   const [orders, setOrders] = useState<OrderData[]>(() => {
     const saved = localStorage.getItem('tg_store_orders');
     if (saved) {
-      try { return JSON.parse(saved); } catch { /* ignore */ }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch { /* ignore */ }
     }
-    return INITIAL_DEMO_ORDERS;
+    return [];
   });
 
   // Order Deletion Modal
   const [orderToDelete, setOrderToDelete] = useState<OrderData | null>(null);
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+  const [isClearingOrders, setIsClearingOrders] = useState(false);
 
   // Active highlighted order for tracking
   const [activeTrackOrderNum, setActiveTrackOrderNum] = useState<string | null>(null);
@@ -208,7 +242,6 @@ export function App() {
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [comment, setComment] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'online' | 'cash'>('online');
   const [savedAddresses, setSavedAddresses] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('tg_store_addresses');
@@ -218,7 +251,7 @@ export function App() {
     }
   });
 
-  // Top features: Promocodes, Cutlery, Tips
+  // Promocodes, Cutlery, Tips
   const [promoCodeInput, setPromoCodeInput] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; percent?: number; amount?: number } | null>(null);
   const [promoError, setPromoError] = useState('');
@@ -298,23 +331,38 @@ export function App() {
     }
   }, []);
 
-  // Fetch updated orders from server periodically
+  // Fetch updated orders from server periodically with status change sound detection
+  const prevStatusesRef = useRef<{ [orderNum: string]: OrderStatus }>({});
+
   useEffect(() => {
+    let isMounted = true;
     const fetchOrders = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/orders`);
-        if (res.ok) {
+        const res = await fetch(`${API_BASE_URL}/api/orders?_t=${Date.now()}`, {
+          cache: 'no-store'
+        });
+        if (res.ok && isMounted) {
           const serverOrders = await res.json();
-          if (Array.isArray(serverOrders) && serverOrders.length > 0) {
-            setOrders(prev => {
-              const combined = [...serverOrders];
-              for (const p of prev) {
-                if (!combined.some(s => s.orderNumber === p.orderNumber)) {
-                  combined.push(p);
+          if (Array.isArray(serverOrders)) {
+            // Check for status changes to trigger sound & haptic
+            let statusChanged = false;
+            serverOrders.forEach((o: OrderData) => {
+              if (o.orderNumber && o.status) {
+                const oldSt = prevStatusesRef.current[o.orderNumber];
+                if (oldSt && oldSt !== o.status) {
+                  statusChanged = true;
                 }
+                prevStatusesRef.current[o.orderNumber] = o.status;
               }
-              return combined;
             });
+
+            if (statusChanged) {
+              playSound('status');
+              triggerHaptic('success');
+            }
+
+            setOrders(serverOrders);
+            localStorage.setItem('tg_store_orders', JSON.stringify(serverOrders));
           }
         }
       } catch {
@@ -323,8 +371,11 @@ export function App() {
     };
 
     fetchOrders();
-    const interval = setInterval(fetchOrders, 15000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchOrders, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Live sync of products (prices and availability) from backend server for all users
@@ -342,7 +393,7 @@ export function App() {
           if (Array.isArray(serverProducts) && serverProducts.length > 0) {
             setProducts(prev => {
               const updated = prev.map(p => {
-                const sp = serverProducts.find((s: any) => s.id === p.id);
+                const sp = serverProducts.find((s: { id: string; price?: number; isAvailable?: boolean; is_available?: number; oldPrice?: number }) => s.id === p.id);
                 if (sp) {
                   const newPrice = typeof sp.price === 'number' ? sp.price : p.price;
                   const newAvail = sp.isAvailable !== undefined ? Boolean(sp.isAvailable) : (sp.is_available !== undefined ? Boolean(sp.is_available) : p.isAvailable);
@@ -367,7 +418,7 @@ export function App() {
     };
 
     fetchLiveProducts();
-    const interval = setInterval(fetchLiveProducts, 10000); // Live poll every 10 seconds
+    const interval = setInterval(fetchLiveProducts, 10000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -390,6 +441,7 @@ export function App() {
   const toggleWishlist = (productId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     triggerHaptic('light');
+    playSound('add');
     setWishlist(prev => 
       prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
     );
@@ -399,6 +451,7 @@ export function App() {
   const addToCart = (productId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     triggerHaptic('light');
+    playSound('add');
     setCart(prev => ({
       ...prev,
       [productId]: (prev[productId] || 0) + 1
@@ -408,6 +461,7 @@ export function App() {
   const removeFromCart = (productId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     triggerHaptic('light');
+    playSound('remove');
     setCart(prev => {
       const current = prev[productId] || 0;
       if (current <= 1) {
@@ -436,6 +490,15 @@ export function App() {
   const subtotalPrice = useMemo(() => {
     return cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   }, [cartItems]);
+
+  // Auto-cancel WELCOME promo code if subtotal drops below 800
+  useEffect(() => {
+    if (appliedPromo?.code === 'WELCOME' && subtotalPrice < 800) {
+      setAppliedPromo(null);
+      setPromoError('Промокод WELCOME отменен: сумма заказа меньше 800 ₽');
+      playSound('error');
+    }
+  }, [subtotalPrice, appliedPromo]);
 
   const discountAmount = useMemo(() => {
     if (!appliedPromo) return 0;
@@ -477,44 +540,62 @@ export function App() {
     if (code === 'VIBE20') {
       setAppliedPromo({ code, percent: 20 });
       setPromoError('');
+      playSound('success');
     } else if (code === 'WELCOME') {
       if (subtotalPrice < 800) {
         setPromoError('Промокод WELCOME действует от 800 ₽');
+        playSound('error');
         return;
       }
       setAppliedPromo({ code, amount: 300 });
       setPromoError('');
+      playSound('success');
     } else {
       setPromoError('Неверный промокод. Попробуйте VIBE20');
       triggerHaptic('error');
+      playSound('error');
     }
   };
 
-  // Re-order in 1 click
+  // Re-order in 1 click (with stop-list protection)
   const handleRepeatOrder = (order: OrderData) => {
     triggerHaptic('medium');
     const newCart: { [id: string]: number } = {};
+    const skippedItems: string[] = [];
+
     for (const item of order.items) {
-      newCart[item.id] = item.quantity;
+      const prod = products.find(p => p.id === item.id);
+      if (prod && prod.isAvailable !== false) {
+        newCart[item.id] = item.quantity;
+      } else {
+        skippedItems.push(item.name);
+      }
     }
+
     setCart(newCart);
     if (order.address) setAddress(order.address);
     if (order.customerName) setCustomerName(order.customerName);
     if (order.phone) setPhone(order.phone);
     if (order.email) setEmail(order.email);
+
+    if (skippedItems.length > 0) {
+      alert(`Некоторые блюда (${skippedItems.join(', ')}) сейчас в стоп-листе и были пропущены.`);
+      playSound('error');
+    } else {
+      playSound('add');
+    }
     setIsCartOpen(true);
   };
 
-  // Delete Order (User & Admin)
+  // Delete Single Order
   const confirmDeleteOrder = async () => {
     if (!orderToDelete) return;
     triggerHaptic('medium');
+    playSound('remove');
     const orderNum = orderToDelete.orderNumber;
 
-    // Remove from local state
     setOrders(prev => prev.filter(o => o.orderNumber !== orderNum));
 
-    // Remove from server DB
     try {
       await fetch(`${API_BASE_URL}/api/orders/delete`, {
         method: 'POST',
@@ -528,9 +609,37 @@ export function App() {
     setOrderToDelete(null);
   };
 
+  // Clear ALL Orders (Admin @qqeaux only)
+  const handleClearAllOrders = async () => {
+    triggerHaptic('heavy');
+    setIsClearingOrders(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/orders/clear-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUsername: 'qqeaux' })
+      });
+      if (res.ok) {
+        setOrders([]);
+        localStorage.removeItem('tg_store_orders');
+        playSound('success');
+      } else {
+        alert('Ошибка при очистке заказов');
+        playSound('error');
+      }
+    } catch {
+      alert('Ошибка подключения к серверу');
+      playSound('error');
+    } finally {
+      setIsClearingOrders(false);
+      setShowClearConfirmModal(false);
+    }
+  };
+
   // Update Status from Admin panel
   const handleAdminStatusChange = async (orderNum: string, newStatus: OrderStatus) => {
     triggerHaptic('medium');
+    playSound('status');
     setOrders(prev => prev.map(o => o.orderNumber === orderNum ? { ...o, status: newStatus } : o));
 
     try {
@@ -565,6 +674,7 @@ export function App() {
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       triggerHaptic('error');
+      playSound('error');
       return;
     }
 
@@ -572,11 +682,13 @@ export function App() {
     if (unavailableItem) {
       alert(`Блюдо "${unavailableItem.product.name}" временно в стоп-листе и недоступно для заказа. Пожалуйста, удалите его из корзины.`);
       triggerHaptic('error');
+      playSound('error');
       return;
     }
 
     setFormErrors({});
     triggerHaptic('success');
+    playSound('success');
 
     // Save recent address
     if (!savedAddresses.includes(address.trim())) {
@@ -585,7 +697,8 @@ export function App() {
       localStorage.setItem('tg_store_addresses', JSON.stringify(updated));
     }
 
-    const orderNum = String(Math.floor(1000 + Math.random() * 9000));
+    // 6-digit collision-resistant order number
+    const orderNum = String(Math.floor(100000 + Math.random() * 900000));
     const newOrder: OrderData = {
       id: `ord-${orderNum}`,
       orderNumber: orderNum,
@@ -607,13 +720,13 @@ export function App() {
       email: email.trim(),
       address: address.trim(),
       comment: comment.trim(),
-      paymentMethod,
-      paymentStatus: paymentMethod === 'online' ? 'paid' : 'pending',
+      paymentMethod: 'cash',
+      paymentStatus: 'pending',
       status: 'new',
       createdAt: 'Только что'
     };
 
-    // 1. Dual Delivery: Send payload directly to Backend API
+    // 1. Dual Delivery: Backend API
     try {
       fetch(`${API_BASE_URL}/api/orders`, {
         method: 'POST',
@@ -628,7 +741,7 @@ export function App() {
       console.warn('API fetch error:', e);
     }
 
-    // 2. Dual Delivery: Send payload to Telegram Bot via WebApp SDK
+    // 2. Dual Delivery: Telegram Bot WebApp SDK
     if (window.Telegram?.WebApp?.sendData) {
       try {
         window.Telegram.WebApp.sendData(JSON.stringify(newOrder));
@@ -637,7 +750,6 @@ export function App() {
       }
     }
 
-    // Save locally
     setOrders(prev => [newOrder, ...prev]);
     setIsCartOpen(false);
     setCart({});
@@ -648,6 +760,7 @@ export function App() {
   // Toggle availability in admin
   const toggleProductAvailability = async (productId: string) => {
     triggerHaptic('medium');
+    playSound('add');
     setProducts(prev => prev.map(p => {
       if (p.id === productId) {
         return { ...p, isAvailable: p.isAvailable === false ? true : false };
@@ -671,6 +784,7 @@ export function App() {
     const val = parseInt(editPriceVal, 10);
     if (isNaN(val) || val <= 0) return;
     triggerHaptic('success');
+    playSound('success');
 
     setProducts(prev => prev.map(p => {
       if (p.id === productId) {
@@ -698,50 +812,47 @@ export function App() {
   }, [orders]);
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 select-none pb-24 ${
+    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-150 select-none pb-24 ${
       isDarkTheme ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
 
-      {/* TOP HEADER */}
-      <header className={`sticky top-0 z-30 px-4 py-3 backdrop-blur-md border-b transition-colors ${
+      {/* REFINED HEADER */}
+      <header className={`sticky top-0 z-30 px-4 py-2.5 backdrop-blur-lg border-b transition-colors ${
         isDarkTheme ? 'bg-slate-950/90 border-slate-800/80' : 'bg-white/90 border-slate-200/80 shadow-xs'
       }`}>
         <div className="flex items-center justify-between gap-3">
           
-          {/* Logo / Brand */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-amber-500 to-red-500 flex items-center justify-center text-white font-black text-lg shadow-md shadow-amber-500/20">
-              V
+          {/* Clean Brand Title */}
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+                Vibe Kitchen
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
             </div>
-            <div>
-              <div className="text-sm font-black tracking-tight leading-tight flex items-center gap-1.5">
-                <span>VIBE KITCHEN</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30">
-                  PREMIUM
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-400 font-medium">Ресторан & Авторская доставка</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              Гастрономическое бистро
             </div>
           </div>
 
-          {/* Right Header Badges */}
+          {/* Right Header Controls */}
           <div className="flex items-center gap-2">
             
-            {/* Moscow Time Theme Pill */}
+            {/* Moscow Time & Theme Pill */}
             <button
               onClick={() => {
                 triggerHaptic('light');
                 setIsDarkTheme(!isDarkTheme);
               }}
               title="Переключить тему"
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
                 isDarkTheme 
-                  ? 'bg-slate-900 border-slate-700 text-amber-400 hover:bg-slate-800' 
+                  ? 'bg-slate-900 border-slate-700/70 text-slate-300 hover:bg-slate-800' 
                   : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
               }`}
             >
-              {isDarkTheme ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5 text-amber-500" />}
-              <span>{moscowTimeStr} МСК</span>
+              {isDarkTheme ? <Moon className="w-3.5 h-3.5 text-amber-400" /> : <Sun className="w-3.5 h-3.5 text-amber-600" />}
+              <span>{moscowTimeStr}</span>
             </button>
 
             {/* Cart Button */}
@@ -750,11 +861,11 @@ export function App() {
                 triggerHaptic('medium');
                 setIsCartOpen(true);
               }}
-              className="relative p-2 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 transition-transform active:scale-95 cursor-pointer"
+              className="relative p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-transform active:scale-95 cursor-pointer"
             >
-              <ShoppingBag className="w-5 h-5" />
+              <ShoppingBag className="w-4 h-4" />
               {totalItemsCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[11px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white dark:border-slate-950 animate-in zoom-in-75">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-white dark:border-slate-950">
                   {totalItemsCount}
                 </span>
               )}
@@ -769,14 +880,16 @@ export function App() {
               triggerHaptic('light');
               setActiveTab('orders');
             }}
-            className="mt-2.5 p-2 rounded-xl bg-gradient-to-r from-amber-500/15 via-blue-500/15 to-emerald-500/15 border border-amber-500/30 flex items-center justify-between text-xs cursor-pointer animate-in fade-in"
+            className={`mt-2 p-2 rounded-xl border flex items-center justify-between text-xs cursor-pointer ${
+              isDarkTheme ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-800'
+            }`}
           >
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-              <span className="font-semibold text-amber-400">Активный заказ готовится</span>
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="font-medium">Заказ готовится</span>
             </div>
-            <div className="flex items-center gap-1 font-bold text-blue-400">
-              <span>Смотреть статус</span>
+            <div className="flex items-center gap-1 font-semibold text-blue-500">
+              <span>Статус</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
           </div>
@@ -784,30 +897,30 @@ export function App() {
       </header>
 
       {/* MAIN CONTENT AREA BY TAB */}
-      <main className="flex-1 max-w-2xl mx-auto w-full px-4 pt-3">
+      <main className="flex-1 max-w-xl mx-auto w-full px-3.5 pt-3">
 
         {/* ================= TAB 1: MENU ================= */}
         {activeTab === 'menu' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="space-y-3.5">
             
             {/* Search Bar */}
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Поиск по меню (бургер, пицца, напитки)..."
-                className={`w-full pl-10 pr-9 py-2.5 rounded-2xl text-xs border transition-all focus:outline-none ${
+                placeholder="Поиск блюд..."
+                className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs border transition-colors focus:outline-none focus:border-blue-500 ${
                   isDarkTheme 
-                    ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500 focus:border-blue-500' 
-                    : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 shadow-xs'
+                    ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500' 
+                    : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400'
                 }`}
               />
               {searchQuery && (
                 <button 
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -815,19 +928,19 @@ export function App() {
             </div>
 
             {/* Category Chips Bar */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
               <button
                 onClick={() => {
                   triggerHaptic('light');
                   setSelectedCategory('all');
                 }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                   selectedCategory === 'all'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
                     : isDarkTheme ? 'bg-slate-900 text-slate-400 border border-slate-800' : 'bg-white text-slate-600 border border-slate-200'
                 }`}
               >
-                🔥 Все блюда
+                Все
               </button>
 
               <button
@@ -835,13 +948,13 @@ export function App() {
                   triggerHaptic('light');
                   setSelectedCategory('favorites');
                 }}
-                className={`flex items-center gap-1 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                   selectedCategory === 'favorites'
-                    ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20'
+                    ? 'bg-rose-600 text-white'
                     : isDarkTheme ? 'bg-slate-900 text-slate-400 border border-slate-800' : 'bg-white text-slate-600 border border-slate-200'
                 }`}
               >
-                <Heart className={`w-3 h-3 ${wishlist.length > 0 ? 'fill-rose-500 text-rose-500' : ''}`} />
+                <Heart className={`w-3 h-3 ${wishlist.length > 0 ? 'fill-current' : ''}`} />
                 <span>Избранное ({wishlist.length})</span>
               </button>
 
@@ -852,9 +965,9 @@ export function App() {
                     triggerHaptic('light');
                     setSelectedCategory(cat.id);
                   }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                     selectedCategory === cat.id
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
                       : isDarkTheme ? 'bg-slate-900 text-slate-400 border border-slate-800' : 'bg-white text-slate-600 border border-slate-200'
                   }`}
                 >
@@ -864,7 +977,7 @@ export function App() {
             </div>
 
             {/* Products Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-2 gap-3 pt-1">
+            <div className="grid grid-cols-2 gap-2.5">
               {filteredProducts.map(product => {
                 const qty = cart[product.id] || 0;
                 const isFav = wishlist.includes(product.id);
@@ -874,30 +987,30 @@ export function App() {
                   <div
                     key={product.id}
                     onClick={() => setSelectedProduct(product)}
-                    className={`rounded-3xl border flex flex-col justify-between overflow-hidden transition-all hover:shadow-lg cursor-pointer ${
+                    className={`rounded-2xl border flex flex-col justify-between overflow-hidden transition-all cursor-pointer ${
                       isDarkTheme 
-                        ? 'bg-slate-900/90 border-slate-800/80 hover:border-slate-700' 
-                        : 'bg-white border-slate-100 hover:border-slate-200 shadow-xs'
-                    } ${!isAvail ? 'opacity-60 grayscale-[40%]' : ''}`}
+                        ? 'bg-slate-900 border-slate-800/80 hover:border-slate-700' 
+                        : 'bg-white border-slate-200/90 shadow-xs'
+                    } ${!isAvail ? 'opacity-55 grayscale-[35%]' : ''}`}
                   >
                     {/* Image Container with Badges */}
                     <div className="relative aspect-4/3 overflow-hidden bg-slate-800">
                       <img
                         src={product.image}
                         alt={product.name}
-                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                        className="w-full h-full object-cover"
                         loading="lazy"
                       />
 
                       {/* Top Badges */}
                       <div className="absolute top-2 left-2 flex flex-col gap-1">
                         {product.badge && (
-                          <span className="px-2 py-0.5 rounded-lg text-[10px] font-black tracking-wide uppercase bg-amber-500 text-slate-950 shadow-sm">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-900/85 text-white backdrop-blur-xs">
                             {product.badge}
                           </span>
                         )}
                         {product.spicy && (
-                          <span className="px-1.5 py-0.5 rounded-lg text-[10px] font-black bg-red-600 text-white shadow-sm flex items-center gap-0.5">
+                          <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-red-600/90 text-white backdrop-blur-xs flex items-center gap-0.5">
                             <Flame className="w-2.5 h-2.5" /> Острое
                           </span>
                         )}
@@ -906,8 +1019,8 @@ export function App() {
                       {/* Favorite Button */}
                       <button
                         onClick={(e) => toggleWishlist(product.id, e)}
-                        className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-md transition-transform active:scale-90 ${
-                          isFav ? 'bg-rose-500 text-white shadow-md' : 'bg-black/40 text-white hover:bg-black/60'
+                        className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-xs transition-transform active:scale-90 ${
+                          isFav ? 'bg-rose-500 text-white' : 'bg-black/40 text-white hover:bg-black/60'
                         }`}
                       >
                         <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
@@ -915,19 +1028,19 @@ export function App() {
 
                       {/* Weight pill */}
                       {product.weight && (
-                        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-[10px] font-semibold text-white/90">
+                        <div className="absolute bottom-1.5 left-2 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] font-medium text-white/90">
                           {product.weight}
                         </div>
                       )}
                     </div>
 
                     {/* Content */}
-                    <div className="p-3 flex-1 flex flex-col justify-between">
+                    <div className="p-2.5 flex-1 flex flex-col justify-between">
                       <div>
-                        <h3 className="text-xs font-black tracking-tight line-clamp-1 mb-1">
+                        <h3 className="text-xs font-bold tracking-tight line-clamp-1 mb-0.5">
                           {product.name}
                         </h3>
-                        <p className={`text-[11px] line-clamp-2 leading-relaxed mb-3 ${
+                        <p className={`text-[11px] line-clamp-2 leading-relaxed mb-2.5 ${
                           isDarkTheme ? 'text-slate-400' : 'text-slate-500'
                         }`}>
                           {product.description}
@@ -935,9 +1048,9 @@ export function App() {
                       </div>
 
                       {/* Price & Add to Cart button */}
-                      <div className={`flex items-center justify-between pt-1 border-t ${isDarkTheme ? 'border-slate-800/40' : 'border-slate-100'}`}>
+                      <div className={`flex items-center justify-between pt-1 border-t ${isDarkTheme ? 'border-slate-800/60' : 'border-slate-100'}`}>
                         <div>
-                          <div className={`text-sm font-black ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
+                          <div className={`text-sm font-bold ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
                             {product.price} ₽
                           </div>
                           {product.oldPrice && product.oldPrice > product.price && (
@@ -952,18 +1065,18 @@ export function App() {
                           qty > 0 ? (
                             <div 
                               onClick={e => e.stopPropagation()} 
-                              className="flex items-center gap-1.5 bg-blue-600 rounded-xl p-1 shadow-sm text-white"
+                              className="flex items-center gap-1.5 bg-blue-600 rounded-lg p-0.5 text-white"
                             >
                               <button 
                                 onClick={e => removeFromCart(product.id, e)}
-                                className="w-6 h-6 rounded-lg bg-blue-700 flex items-center justify-center hover:bg-blue-800 active:scale-95"
+                                className="w-5 h-5 rounded flex items-center justify-center hover:bg-blue-700 active:scale-95 cursor-pointer"
                               >
                                 <Minus className="w-3 h-3" />
                               </button>
-                              <span className="text-xs font-black px-1 min-w-[14px] text-center">{qty}</span>
+                              <span className="text-xs font-bold px-1 min-w-[14px] text-center">{qty}</span>
                               <button 
                                 onClick={e => addToCart(product.id, e)}
-                                className="w-6 h-6 rounded-lg bg-blue-700 flex items-center justify-center hover:bg-blue-800 active:scale-95"
+                                className="w-5 h-5 rounded flex items-center justify-center hover:bg-blue-700 active:scale-95 cursor-pointer"
                               >
                                 <Plus className="w-3 h-3" />
                               </button>
@@ -971,15 +1084,15 @@ export function App() {
                           ) : (
                             <button
                               onClick={e => addToCart(product.id, e)}
-                              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm shadow-blue-500/20 active:scale-95 transition-transform flex items-center gap-1 cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition-colors flex items-center gap-1 cursor-pointer"
                             >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Хочу</span>
+                              <Plus className="w-3 h-3" />
+                              <span>В корзину</span>
                             </button>
                           )
                         ) : (
-                          <span className="text-[10px] font-bold text-slate-500 uppercase px-2 py-1 rounded-md bg-slate-800/40">
-                            Стоп-лист
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase px-2 py-0.5 rounded bg-slate-800/40">
+                            Стоп
                           </span>
                         )}
                       </div>
@@ -990,216 +1103,187 @@ export function App() {
             </div>
 
             {filteredProducts.length === 0 && (
-              <div className="text-center py-16 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
-                  <Search className="w-6 h-6" />
+              <div className="text-center py-12 space-y-2">
+                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                  <Search className="w-5 h-5" />
                 </div>
-                <div className="text-sm font-bold">Ничего не найдено</div>
-                <p className="text-xs text-slate-400">Попробуйте изменить запрос или выбрать другую категорию</p>
+                <div className="text-xs font-semibold">Ничего не найдено</div>
+                <p className="text-[11px] text-slate-400">Попробуйте изменить запрос</p>
               </div>
             )}
           </div>
         )}
 
-        {/* ================= TAB 2: MY ORDERS & STAGE TRACKER ================= */}
+        {/* ================= TAB 2: MY ORDERS ================= */}
         {activeTab === 'orders' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between mb-2">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between mb-1">
               <div>
-                <h2 className="text-base font-black tracking-tight">Мои заказы</h2>
-                <p className="text-xs text-slate-400">Отслеживание в реальном времени и история</p>
+                <h2 className="text-sm font-bold tracking-tight">Мои заказы</h2>
+                <p className="text-[11px] text-slate-400">История и статус доставки</p>
               </div>
-              <span className="text-xs font-bold px-2 py-1 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-lg bg-slate-800/50 text-slate-300">
                 {orders.length} заказов
               </span>
             </div>
 
             {orders.length === 0 ? (
-              <div className="text-center py-20 space-y-3">
-                <div className="w-14 h-14 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center mx-auto">
-                  <Package className="w-7 h-7" />
+              <div className="text-center py-16 space-y-2.5">
+                <div className="w-12 h-12 rounded-full bg-slate-800/60 text-slate-400 flex items-center justify-center mx-auto">
+                  <Package className="w-6 h-6" />
                 </div>
-                <h3 className="text-sm font-bold">У вас пока нет заказов</h3>
-                <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                  Перейдите в меню, выберите любимые блюда и оформите первый заказ за пару кликов!
+                <h3 className="text-xs font-semibold">У вас пока нет заказов</h3>
+                <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+                  Выберите блюда в меню и оформите заказ в несколько кликов
                 </p>
                 <button
                   onClick={() => {
                     triggerHaptic('light');
                     setActiveTab('menu');
                   }}
-                  className="px-5 py-2.5 rounded-2xl bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-500/20 cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-medium cursor-pointer"
                 >
                   Перейти в меню
                 </button>
               </div>
             ) : (
               orders.map(order => {
-                const isTrackExpanded = activeTrackOrderNum === order.orderNumber || order.status !== 'completed';
-                
-                // Stepper stages: 1: New, 2: Cooking, 3: Delivering, 4: Completed
                 const stageIndex = order.status === 'cooking' ? 2 : order.status === 'delivering' ? 3 : order.status === 'completed' ? 4 : 1;
                 const isCancelled = order.status === 'cancelled';
 
                 return (
                   <div
                     key={order.orderNumber || order.id}
-                    className={`rounded-3xl border p-4 space-y-3.5 transition-all ${
-                      isDarkTheme ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                    className={`rounded-2xl border p-3 space-y-3 transition-colors ${
+                      isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
                     }`}
                   >
                     {/* Header */}
-                    <div className={`flex items-center justify-between pb-2 border-b ${isDarkTheme ? 'border-slate-800/40' : 'border-slate-100'}`}>
+                    <div className={`flex items-center justify-between pb-2 border-b ${isDarkTheme ? 'border-slate-800/60' : 'border-slate-100'}`}>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-sm">Заказ #{order.orderNumber}</span>
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${
-                            order.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                            order.status === 'delivering' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 animate-pulse' :
-                            order.status === 'cooking' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse' :
-                            order.status === 'cancelled' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                            isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs">Заказ #{order.orderNumber}</span>
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                            order.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' :
+                            order.status === 'delivering' ? 'bg-blue-500/15 text-blue-400' :
+                            order.status === 'cooking' ? 'bg-amber-500/15 text-amber-400' :
+                            order.status === 'cancelled' ? 'bg-red-500/15 text-red-400' :
+                            'bg-slate-800 text-slate-300'
                           }`}>
                             {order.status === 'completed' ? 'Доставлен' :
                              order.status === 'delivering' ? 'Курьер в пути' :
-                             order.status === 'cooking' ? 'Готовится на кухне' :
+                             order.status === 'cooking' ? 'На кухне' :
                              order.status === 'cancelled' ? 'Отменен' : 'Принят'}
                           </span>
                         </div>
-                        <div className={`text-[11px] mt-0.5 ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>{order.createdAt}</div>
+                        <div className={`text-[10px] mt-0.5 ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>{order.createdAt}</div>
                       </div>
 
                       <div className="text-right">
-                        <div className={`text-base font-black ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
+                        <div className={`text-sm font-bold ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
                           {order.totalPrice} ₽
                         </div>
                         <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {order.paymentMethod === 'online' ? 'Оплачен онлайн' : 'Оплата при получении'}
+                          При получении
                         </div>
                       </div>
                     </div>
 
-                    {/* VISUAL ORDER STAGES STEPPER (if not cancelled) */}
+                    {/* Progress Stepper */}
                     {!isCancelled && (
-                      <div className={`p-3 rounded-2xl border ${
-                        isDarkTheme ? 'bg-slate-950/70 border-slate-800/80' : 'bg-slate-50 border-slate-200'
+                      <div className={`p-2.5 rounded-xl border ${
+                        isDarkTheme ? 'bg-slate-950/60 border-slate-800/60' : 'bg-slate-50 border-slate-200'
                       }`}>
-                        <div className={`text-[11px] font-bold mb-2.5 flex items-center justify-between ${
-                          isDarkTheme ? 'text-slate-400' : 'text-slate-600'
-                        }`}>
-                          <span>Стадия выполнения</span>
-                          {order.status !== 'completed' && (
-                            <span className="text-amber-500 flex items-center gap-1 font-semibold">
-                              <Clock className="w-3 h-3" /> ~20–35 мин
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Progress Bar with 4 nodes */}
                         <div className="relative flex items-center justify-between px-2 pt-1 pb-1">
-                          <div className={`absolute left-6 right-6 top-4 h-1 -translate-y-1/2 z-0 ${
+                          <div className={`absolute left-5 right-5 top-3.5 h-0.5 -translate-y-1/2 z-0 ${
                             isDarkTheme ? 'bg-slate-800' : 'bg-slate-200'
-                          }`}>
-                            <div 
-                              className="h-full bg-gradient-to-r from-amber-500 via-blue-500 to-emerald-500 transition-all duration-500" 
-                              style={{ width: `${((stageIndex - 1) / 3) * 100}%` }}
-                            />
-                          </div>
+                          }`} />
+                          
+                          <div 
+                            className="absolute left-5 top-3.5 h-0.5 -translate-y-1/2 bg-blue-500 transition-all duration-300 z-0" 
+                            style={{ width: `${((stageIndex - 1) / 3) * 100}%` }}
+                          />
 
-                          {/* Stage 1: Created */}
-                          <div className="relative z-10 flex flex-col items-center gap-1 text-center">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                              stageIndex >= 1 ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : (isDarkTheme ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500')
+                          {/* Node 1 */}
+                          <div className="relative z-10 flex flex-col items-center gap-1">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                              stageIndex >= 1 ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
                             }`}>
                               <Check className="w-3.5 h-3.5" />
                             </div>
-                            <span className={`text-[10px] font-semibold ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>Принят</span>
+                            <span className="text-[10px] text-slate-400 font-medium">Принят</span>
                           </div>
 
-                          {/* Stage 2: Cooking */}
-                          <div className="relative z-10 flex flex-col items-center gap-1 text-center">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                              stageIndex >= 2 
-                                ? (stageIndex === 2 ? 'bg-amber-500 text-slate-950 animate-bounce' : 'bg-blue-600 text-white')
-                                : (isDarkTheme ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500')
+                          {/* Node 2 */}
+                          <div className="relative z-10 flex flex-col items-center gap-1">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                              stageIndex >= 2 ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
                             }`}>
                               <ChefHat className="w-3.5 h-3.5" />
                             </div>
-                            <span className={`text-[10px] font-semibold ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>Кухня</span>
+                            <span className="text-[10px] text-slate-400 font-medium">Кухня</span>
                           </div>
 
-                          {/* Stage 3: Delivering */}
-                          <div className="relative z-10 flex flex-col items-center gap-1 text-center">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                              stageIndex >= 3 
-                                ? (stageIndex === 3 ? 'bg-blue-500 text-white animate-pulse' : 'bg-emerald-600 text-white')
-                                : (isDarkTheme ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500')
+                          {/* Node 3 */}
+                          <div className="relative z-10 flex flex-col items-center gap-1">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                              stageIndex >= 3 ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
                             }`}>
                               <Bike className="w-3.5 h-3.5" />
                             </div>
-                            <span className={`text-[10px] font-semibold ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>В пути</span>
+                            <span className="text-[10px] text-slate-400 font-medium">В пути</span>
                           </div>
 
-                          {/* Stage 4: Delivered */}
-                          <div className="relative z-10 flex flex-col items-center gap-1 text-center">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                              stageIndex >= 4 ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30' : (isDarkTheme ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500')
+                          {/* Node 4 */}
+                          <div className="relative z-10 flex flex-col items-center gap-1">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                              stageIndex >= 4 ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'
                             }`}>
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             </div>
-                            <span className={`text-[10px] font-semibold ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>Доставлен</span>
+                            <span className="text-[10px] text-slate-400 font-medium">Доставлен</span>
                           </div>
                         </div>
                       </div>
                     )}
 
-                    {/* Items List in Order */}
-                    <div className="space-y-1.5 text-xs">
+                    {/* Order Items */}
+                    <div className="space-y-1 text-xs">
                       {order.items.map((item, idx) => (
-                        <div key={idx} className={`flex justify-between items-center ${isDarkTheme ? 'text-slate-300' : 'text-slate-700'}`}>
-                          <span className="truncate max-w-[220px]">
-                            {item.name} <span className={isDarkTheme ? 'text-slate-500' : 'text-slate-400'}>× {item.quantity}</span>
+                        <div key={idx} className="flex justify-between items-center text-[11px]">
+                          <span className={`truncate max-w-[220px] ${isDarkTheme ? 'text-slate-300' : 'text-slate-700'}`}>
+                            {item.quantity} × {item.name}
                           </span>
-                          <span className={`font-semibold ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>
-                            {item.price * item.quantity} ₽
-                          </span>
+                          <span className="font-medium text-slate-400">{item.price * item.quantity} ₽</span>
                         </div>
                       ))}
                     </div>
 
                     {/* Delivery Address */}
-                    <div className={`flex items-start gap-1.5 text-[11px] pt-1 ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
-                      <MapPin className="w-3.5 h-3.5 shrink-0 text-blue-500 mt-0.5" />
-                      <span className="truncate">{order.address}</span>
-                    </div>
+                    {order.address && (
+                      <div className={`text-[11px] flex items-center gap-1.5 ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{order.address}</span>
+                      </div>
+                    )}
 
-                    {/* Action Buttons: Repeat & Delete */}
-                    <div className={`flex items-center gap-2 pt-2 border-t ${isDarkTheme ? 'border-slate-800/40' : 'border-slate-100'}`}>
-                      
-                      {/* Repeat Order Button */}
+                    {/* Action Buttons */}
+                    <div className={`flex items-center gap-2 pt-2 border-t ${isDarkTheme ? 'border-slate-800/60' : 'border-slate-100'}`}>
                       <button
                         onClick={() => handleRepeatOrder(order)}
-                        className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs border flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer ${
-                          isDarkTheme 
-                            ? 'bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border-blue-500/20' 
-                            : 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200'
-                        }`}
+                        className="flex-1 py-1.5 rounded-lg bg-blue-600/10 hover:bg-blue-600/20 text-blue-500 font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         <span>Повторить заказ</span>
                       </button>
 
-                      {/* Delete from History Button */}
                       <button
                         onClick={() => setOrderToDelete(order)}
-                        title="Удалить из истории"
-                        className={`p-2 rounded-xl border transition-all active:scale-95 cursor-pointer ${
-                          isDarkTheme 
-                            ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20' 
-                            : 'bg-red-50 hover:bg-red-100 text-red-600 border-red-200'
+                        className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                          isDarkTheme ? 'border-slate-800 text-slate-400 hover:text-red-400' : 'border-slate-200 text-slate-400 hover:text-red-500'
                         }`}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -1211,280 +1295,251 @@ export function App() {
 
         {/* ================= TAB 3: SUPPORT & INFO ================= */}
         {activeTab === 'support' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="space-y-3.5">
             <div>
-              <h2 className="text-base font-black tracking-tight">Поддержка & О проекте</h2>
-              <p className={`text-xs ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Служба заботы о клиентах и контакты разработчика</p>
+              <h2 className="text-sm font-bold tracking-tight">Служба заботы & Контакты</h2>
+              <p className={`text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Помощь с заказами и связь с разработчиком</p>
             </div>
 
-            {/* Turnkey Development Offer Banner */}
-            <div className={`p-4 rounded-3xl border relative overflow-hidden ${
-              isDarkTheme ? 'bg-gradient-to-br from-blue-950/60 to-slate-900 border-blue-800/40' : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200'
+            {/* Dev Offer */}
+            <div className={`p-3.5 rounded-2xl border ${
+              isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}>
-              <div className="flex items-center gap-2 text-blue-500 font-extrabold text-xs mb-1">
-                <Sparkles className="w-4 h-4" />
-                <span>РАЗРАБОТКА ПОД КЛЮЧ</span>
+              <div className="flex items-center gap-1.5 text-blue-500 font-semibold text-xs mb-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Разработка Telegram Mini App</span>
               </div>
-              <h3 className={`text-sm font-black mb-1.5 ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>Хотите такой же Telegram Mini App для бизнеса?</h3>
-              <p className={`text-xs leading-relaxed mb-3 ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
-                Создаем полноценные цифровые рестораны, каталоги товаров и сервисы доставки с удобным приемом заказов, закрытой админкой и защитой от фрода.
+              <h3 className={`text-xs font-bold mb-1 ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
+                Нужен магазин или бот для вашего бизнеса?
+              </h3>
+              <p className={`text-[11px] leading-relaxed mb-3 ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
+                Создаем удобные интернет-магазины в Telegram с каталогом, онлайн-трекингом и закрытой панелью управления.
               </p>
-              
-              <div className={`flex items-center gap-3 text-xs font-semibold mb-3.5 ${isDarkTheme ? 'text-slate-300' : 'text-slate-700'}`}>
-                <span className="flex items-center gap-1">⏱ Срок: 3–5 дней</span>
-                <span className="flex items-center gap-1 text-amber-500 font-bold">💰 От 25 000 ₽</span>
-              </div>
 
               <a
                 href="https://t.me/qqeaux"
                 target="_blank"
                 rel="noreferrer"
-                className="w-full py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
               >
-                <MessageCircle className="w-4 h-4" />
+                <MessageCircle className="w-3.5 h-3.5" />
                 <span>Написать разработчику (@qqeaux)</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                <ExternalLink className="w-3 h-3 opacity-70" />
               </a>
             </div>
 
             {/* FAQ Accordion */}
-            <div className={`rounded-3xl border p-4 space-y-3 ${
-              isDarkTheme ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+            <div className={`rounded-2xl border p-3.5 space-y-2.5 ${
+              isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}>
-              <div className={`flex items-center gap-2 text-xs font-black uppercase tracking-wider ${
-                isDarkTheme ? 'text-slate-400' : 'text-slate-500'
+              <div className={`flex items-center gap-1.5 text-xs font-bold ${
+                isDarkTheme ? 'text-slate-300' : 'text-slate-700'
               }`}>
                 <HelpCircle className="w-4 h-4 text-blue-500" />
-                <span>Частые вопросы (FAQ)</span>
+                <span>Частые вопросы</span>
               </div>
 
-              <div className="space-y-2.5 text-xs">
-                <div className={`p-3.5 rounded-2xl border ${
+              <div className="space-y-2 text-xs">
+                <div className={`p-2.5 rounded-xl border ${
                   isDarkTheme ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
                 }`}>
-                  <div className={`font-bold mb-1 ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>Как работает отслеживание стадий?</div>
-                  <div className={`text-[11px] leading-relaxed ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
-                    После оформления заказа во вкладке «Мои заказы» появляется интерактивный таймлайн. При переходе на кухню или выезде курьера статус мгновенно обновляется прямо на экране.
+                  <div className="font-semibold mb-0.5">Как отслеживать статус?</div>
+                  <div className="text-[11px] text-slate-400 leading-relaxed">
+                    Во вкладке «Заказы» отображаются все активные стадии приготовления и перемещения курьера в реальном времени.
                   </div>
                 </div>
 
-                <div className={`p-3.5 rounded-2xl border ${
+                <div className={`p-2.5 rounded-xl border ${
                   isDarkTheme ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
                 }`}>
-                  <div className={`font-bold mb-1 ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>Какие способы оплаты доступны?</div>
-                  <div className={`text-[11px] leading-relaxed ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
-                    Оплата производится при получении курьеру наличными или банковской картой.
-                  </div>
-                </div>
-
-                <div className={`p-3.5 rounded-2xl border ${
-                  isDarkTheme ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
-                }`}>
-                  <div className={`font-bold mb-1 ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>Сколько занимает доставка?</div>
-                  <div className={`text-[11px] leading-relaxed ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
-                    Среднее время приготовления и доставки курьером по городу составляет от 30 до 45 минут в зависимости от адреса.
+                  <div className="font-semibold mb-0.5">Как оплатить заказ?</div>
+                  <div className="text-[11px] text-slate-400 leading-relaxed">
+                    Оплата происходит при получении курьеру наличными или картой.
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* About Tech Stack */}
-            <div className={`rounded-3xl border p-4 text-xs space-y-2 ${
-              isDarkTheme ? 'bg-slate-900/90 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600 shadow-xs'
-            }`}>
-              <div className={`font-bold ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>О технологическом стеке стенда:</div>
-              <ul className={`space-y-1 list-disc list-inside text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
-                <li><b>Frontend:</b> React 19 + TypeScript + Tailwind CSS (Telegram WebApp SDK)</li>
-                <li><b>Backend:</b> Python 3 (Aiogram 3 + aiohttp REST API)</li>
-                <li><b>База данных:</b> SQLite (синхронизация заказов, КБЖУ, цены)</li>
-                <li><b>Безопасность:</b> Anti-fraud валидация, закрытая админка для @qqeaux</li>
-              </ul>
             </div>
           </div>
         )}
 
-        {/* ================= TAB 4: ADMIN PANEL ================= */}
+        {/* ================= TAB 4: ADMIN PANEL (@qqeaux only) ================= */}
         {activeTab === 'admin' && isActualAdmin && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
-                  👑
-                </span>
-                <div>
-                  <h2 className="text-base font-black tracking-tight">Панель администратора</h2>
-                  <div className="text-xs text-amber-400 font-bold">Владелец: @qqeaux</div>
-                </div>
+          <div className="space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold tracking-tight">Панель управления</h2>
+                <div className="text-[11px] text-amber-500 font-medium">Администратор: @qqeaux</div>
               </div>
-              <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                LIVE СЕРВЕР
-              </span>
+
+              {/* Clear ALL Orders Button */}
+              <button
+                onClick={() => setShowClearConfirmModal(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/25 text-xs font-medium cursor-pointer transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Очистить историю</span>
+              </button>
             </div>
 
             {/* Analytics Cards */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className={`p-3 rounded-2xl border ${isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
-                <div className={`text-[10px] font-bold uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Выручка всего</div>
-                <div className="text-base font-black text-amber-500 mt-0.5">
+            <div className="grid grid-cols-2 gap-2">
+              <div className={`p-2.5 rounded-xl border ${isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
+                <div className="text-[10px] text-slate-400 font-medium">Выручка</div>
+                <div className="text-sm font-bold text-amber-500 mt-0.5">
                   {orders.reduce((acc, o) => acc + (o.paymentStatus === 'paid' ? o.totalPrice : 0), 0)} ₽
                 </div>
               </div>
 
-              <div className={`p-3 rounded-2xl border ${isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
-                <div className={`text-[10px] font-bold uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Всего заказов</div>
-                <div className="text-base font-black text-blue-500 mt-0.5">
+              <div className={`p-2.5 rounded-xl border ${isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
+                <div className="text-[10px] text-slate-400 font-medium">Заказов в базе</div>
+                <div className="text-sm font-bold text-blue-500 mt-0.5">
                   {orders.length}
                 </div>
               </div>
             </div>
 
-            {/* Manage Orders Section */}
-            <div className="space-y-3">
-              <h3 className={`text-xs font-black uppercase tracking-wider ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
-                Управление заказами клиентов ({orders.length})
+            {/* Manage Orders */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-slate-400">
+                Заказы ({orders.length})
               </h3>
 
               {orders.map(order => (
                 <div 
-                  key={order.orderNumber}
-                  className={`p-3.5 rounded-2xl border space-y-2.5 text-xs ${
+                  key={order.orderNumber || order.id}
+                  className={`p-3 rounded-xl border space-y-2 text-xs ${
                     isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs text-slate-900'
                   }`}
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <div className="font-black text-sm flex items-center gap-2">
+                      <div className="font-bold flex items-center gap-1.5">
                         <span>#{order.orderNumber}</span>
-                        <span className={`font-semibold ${isDarkTheme ? 'text-slate-300' : 'text-slate-700'}`}>{order.customerName}</span>
+                        <span className="font-normal text-slate-400">{order.customerName}</span>
                       </div>
-                      <div className="text-blue-500 font-medium">{order.phone}</div>
-                      <div className={`text-[11px] truncate max-w-[200px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>{order.address}</div>
+                      <div className="text-blue-500 text-[11px]">{order.phone}</div>
+                      <div className="text-[11px] text-slate-400 truncate max-w-[200px]">{order.address}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-black text-amber-500">{order.totalPrice} ₽</div>
-                      <span className={`text-[10px] uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>{order.status}</span>
+                      <div className="font-bold text-amber-500">{order.totalPrice} ₽</div>
+                      <span className="text-[10px] text-slate-400 uppercase">{order.status}</span>
                     </div>
                   </div>
 
                   {/* Status Change Buttons */}
-                  <div className={`flex flex-wrap gap-1.5 pt-1 border-t ${isDarkTheme ? 'border-slate-800' : 'border-slate-100'}`}>
+                  <div className={`flex flex-wrap gap-1 pt-1.5 border-t ${isDarkTheme ? 'border-slate-800' : 'border-slate-100'}`}>
                     <button
                       onClick={() => handleAdminStatusChange(order.orderNumber || '', 'cooking')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                      className={`px-2 py-1 rounded text-[10px] font-medium border cursor-pointer ${
                         order.status === 'cooking' 
                           ? 'bg-amber-500 text-slate-950 border-amber-500' 
-                          : isDarkTheme ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                          : 'bg-slate-800 border-slate-700 text-slate-300'
                       }`}
                     >
-                      👨‍🍳 В готовку
+                      👨‍🍳 Кухня
                     </button>
                     <button
                       onClick={() => handleAdminStatusChange(order.orderNumber || '', 'delivering')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                      className={`px-2 py-1 rounded text-[10px] font-medium border cursor-pointer ${
                         order.status === 'delivering' 
                           ? 'bg-blue-600 text-white border-blue-600' 
-                          : isDarkTheme ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                          : 'bg-slate-800 border-slate-700 text-slate-300'
                       }`}
                     >
-                      🚴 В доставку
+                      🚴 Доставка
                     </button>
                     <button
                       onClick={() => handleAdminStatusChange(order.orderNumber || '', 'completed')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                      className={`px-2 py-1 rounded text-[10px] font-medium border cursor-pointer ${
                         order.status === 'completed' 
                           ? 'bg-emerald-600 text-white border-emerald-600' 
-                          : isDarkTheme ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                          : 'bg-slate-800 border-slate-700 text-slate-300'
                       }`}
                     >
                       ✅ Выполнен
                     </button>
                     <button
                       onClick={() => setOrderToDelete(order)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                        isDarkTheme 
-                          ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20' 
-                          : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
-                      }`}
+                      className="px-2 py-1 rounded text-[10px] font-medium bg-red-500/10 text-red-400 border border-red-500/20 cursor-pointer ml-auto"
                     >
-                      🗑️ Удалить
+                      Удалить
                     </button>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Products & Prices Management */}
-            <div className="space-y-3 pt-3">
-              <h3 className={`text-xs font-black uppercase tracking-wider ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
-                Цены и наличие товаров
+            {/* Products Price & Availability Controls */}
+            <div className="space-y-2 pt-1">
+              <h3 className="text-xs font-semibold text-slate-400">
+                Каталог блюд и цены
               </h3>
-
-              {products.map(p => (
-                <div 
-                  key={p.id}
-                  className={`p-3 rounded-2xl border flex items-center justify-between text-xs ${
-                    isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <img src={p.image} alt={p.name} className="w-10 h-10 rounded-xl object-cover" />
-                    <div>
-                      <div className={`font-bold line-clamp-1 ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>{p.name}</div>
-                      <div className="text-[11px] text-amber-500 font-black">{p.price} ₽</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {editingPriceId === p.id ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          value={editPriceVal}
-                          onChange={e => setEditPriceVal(e.target.value)}
-                          className={`w-16 px-2 py-1 rounded-lg border text-xs ${
-                            isDarkTheme ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                          }`}
-                        />
-                        <button
-                          onClick={() => handleSavePrice(p.id)}
-                          className="p-1 rounded-lg bg-emerald-600 text-white"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
+              <div className="space-y-1.5">
+                {products.map(p => (
+                  <div 
+                    key={p.id}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                      isDarkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate max-w-[180px]">
+                      <img src={p.image} alt={p.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                      <div className="truncate">
+                        <div className="font-medium truncate">{p.name}</div>
+                        <div className="text-[10px] text-slate-400">{p.weight}</div>
                       </div>
-                    ) : (
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {editingPriceId === p.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={editPriceVal}
+                            onChange={e => setEditPriceVal(e.target.value)}
+                            className="w-16 px-1.5 py-0.5 rounded text-xs bg-slate-950 border border-slate-700 text-white"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleSavePrice(p.id)}
+                            className="p-1 rounded bg-emerald-600 text-white"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingPriceId(p.id);
+                            setEditPriceVal(String(p.price));
+                          }}
+                          className="font-bold text-amber-500 flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <span>{p.price} ₽</span>
+                          <Edit2 className="w-3 h-3 opacity-60" />
+                        </button>
+                      )}
+
                       <button
-                        onClick={() => {
-                          setEditingPriceId(p.id);
-                          setEditPriceVal(String(p.price));
-                        }}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          isDarkTheme ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                        onClick={() => toggleProductAvailability(p.id)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
+                          p.isAvailable !== false ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
                         }`}
                       >
-                        <Edit2 className="w-3.5 h-3.5" />
+                        {p.isAvailable !== false ? 'В наличии' : 'Стоп'}
                       </button>
-                    )}
-
-                    <button
-                      onClick={() => toggleProductAvailability(p.id)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${
-                        p.isAvailable !== false ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
-                      }`}
-                    >
-                      {p.isAvailable !== false ? 'В наличии' : 'Стоп'}
-                    </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* ================= FIXED BOTTOM NAVIGATION BAR ================= */}
-      <nav className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-xl transition-colors ${
-        isDarkTheme ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
+      {/* ================= FIXED BOTTOM NAVIGATION ================= */}
+      <nav className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-lg transition-colors ${
+        isDarkTheme ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-sm'
       }`}>
         <div className="max-w-md mx-auto grid grid-cols-4 px-2 py-1.5">
           
@@ -1494,13 +1549,13 @@ export function App() {
               triggerHaptic('light');
               setActiveTab('menu');
             }}
-            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all cursor-pointer ${
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
               activeTab === 'menu'
                 ? 'text-blue-500 font-bold'
                 : 'text-slate-400 hover:text-slate-300 font-medium'
             }`}
           >
-            <Utensils className="w-5 h-5 mb-0.5" />
+            <Utensils className="w-4 h-4 mb-0.5" />
             <span className="text-[10px]">Меню</span>
           </button>
 
@@ -1510,16 +1565,16 @@ export function App() {
               triggerHaptic('light');
               setActiveTab('orders');
             }}
-            className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition-all cursor-pointer ${
+            className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
               activeTab === 'orders'
                 ? 'text-blue-500 font-bold'
                 : 'text-slate-400 hover:text-slate-300 font-medium'
             }`}
           >
-            <Package className="w-5 h-5 mb-0.5" />
+            <Package className="w-4 h-4 mb-0.5" />
             <span className="text-[10px]">Заказы</span>
             {activeOrdersCount > 0 && (
-              <span className="absolute top-1 right-5 w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              <span className="absolute top-1 right-5 w-2 h-2 rounded-full bg-amber-500" />
             )}
           </button>
 
@@ -1529,31 +1584,31 @@ export function App() {
               triggerHaptic('light');
               setActiveTab('support');
             }}
-            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all cursor-pointer ${
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
               activeTab === 'support'
                 ? 'text-blue-500 font-bold'
                 : 'text-slate-400 hover:text-slate-300 font-medium'
             }`}
           >
-            <HelpCircle className="w-5 h-5 mb-0.5" />
+            <HelpCircle className="w-4 h-4 mb-0.5" />
             <span className="text-[10px]">Инфо</span>
           </button>
 
-          {/* Tab 4: Admin (if admin) or Profile */}
+          {/* Tab 4: Admin (only if @qqeaux) or Cart button */}
           {isActualAdmin ? (
             <button
               onClick={() => {
                 triggerHaptic('medium');
                 setActiveTab('admin');
               }}
-              className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all cursor-pointer ${
+              className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
                 activeTab === 'admin'
-                  ? 'text-amber-400 font-bold'
+                  ? 'text-amber-500 font-bold'
                   : 'text-slate-400 hover:text-slate-300 font-medium'
               }`}
             >
-              <span className="text-base mb-0.5 leading-none">👑</span>
-              <span className="text-[10px]">Админка</span>
+              <span className="text-sm mb-0.5 leading-none">👑</span>
+              <span className="text-[10px]">Админ</span>
             </button>
           ) : (
             <button
@@ -1563,51 +1618,51 @@ export function App() {
               }}
               className="flex flex-col items-center justify-center py-1 rounded-xl text-slate-400 hover:text-slate-300 font-medium cursor-pointer"
             >
-              <ShoppingBag className="w-5 h-5 mb-0.5" />
+              <ShoppingBag className="w-4 h-4 mb-0.5" />
               <span className="text-[10px]">Корзина</span>
             </button>
           )}
         </div>
       </nav>
 
-      {/* ================= PRODUCT DETAIL MODAL (WITH KBJU & INGREDIENTS) ================= */}
+      {/* ================= PRODUCT DETAIL MODAL (KBJU & INGREDIENTS) ================= */}
       {selectedProduct && (() => {
         const currentProduct = products.find(p => p.id === selectedProduct.id) || selectedProduct;
         const isAvail = currentProduct.isAvailable !== false;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className={`w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col overflow-hidden border shadow-2xl ${
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className={`w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[88vh] flex flex-col overflow-hidden border shadow-xl ${
               isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               
-              {/* Modal Image with Close Button */}
+              {/* Modal Image */}
               <div className="relative aspect-16/9 w-full bg-slate-950 overflow-hidden shrink-0">
                 <img 
                   src={currentProduct.image} 
                   alt={currentProduct.name} 
-                  className={`w-full h-full object-cover ${!isAvail ? 'opacity-60 grayscale-[40%]' : ''}`}
+                  className={`w-full h-full object-cover ${!isAvail ? 'opacity-60 grayscale-[35%]' : ''}`}
                 />
                 <button
                   onClick={() => setSelectedProduct(null)}
-                  className="absolute top-3 right-3 p-2 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-black/80 transition-transform active:scale-95 cursor-pointer"
+                  className="absolute top-3 right-3 p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-transform active:scale-95 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
 
                 {/* Badges */}
-                <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
+                <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5">
                   {!isAvail ? (
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-black uppercase bg-red-600 text-white shadow-md">
+                    <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-600 text-white">
                       Стоп-лист
                     </span>
                   ) : currentProduct.badge ? (
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-black uppercase bg-amber-500 text-slate-950 shadow-md">
+                    <span className="px-2 py-0.5 rounded text-xs font-bold bg-slate-900/90 text-white">
                       {currentProduct.badge}
                     </span>
                   ) : null}
                   {currentProduct.weight && (
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-black/70 backdrop-blur-md text-white">
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-black/60 text-white">
                       {currentProduct.weight}
                     </span>
                   )}
@@ -1615,57 +1670,53 @@ export function App() {
               </div>
 
               {/* Scrollable Content */}
-              <div className="p-4 overflow-y-auto space-y-4">
+              <div className="p-3.5 overflow-y-auto space-y-3.5">
                 <div>
-                  <h2 className="text-lg font-black tracking-tight">{currentProduct.name}</h2>
+                  <h2 className="text-base font-bold tracking-tight">{currentProduct.name}</h2>
                   <p className={`text-xs mt-1 leading-relaxed ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
                     {currentProduct.description}
                   </p>
                 </div>
 
-                {/* NUTRITION FACTS (КБЖУ) CARDS */}
-                <div className={`p-3.5 rounded-2xl border ${
-                  isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                {/* KBJU Grid */}
+                <div className={`p-3 rounded-xl border ${
+                  isDarkTheme ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}>
-                  <div className={`text-[11px] font-black uppercase tracking-wider mb-2.5 flex items-center justify-between ${
-                    isDarkTheme ? 'text-slate-400' : 'text-slate-600'
-                  }`}>
-                    <span>Энергетическая ценность (КБЖУ)</span>
-                    <span className={`font-semibold text-[10px] ${isDarkTheme ? 'text-slate-500' : 'text-slate-400'}`}>на 100 г блюда</span>
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 flex justify-between">
+                    <span>Энергетическая ценность</span>
+                    <span>на 100 г</span>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2 text-center">
-                    <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                      <div className="text-xs font-black text-amber-500">{currentProduct.calories || 240}</div>
-                      <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>ккал</div>
+                  <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                    <div className="p-1.5 rounded-lg bg-slate-800/40">
+                      <div className="font-bold text-amber-500">{currentProduct.calories || 240}</div>
+                      <div className="text-[10px] text-slate-400">ккал</div>
                     </div>
-                    <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
-                      <div className="text-xs font-black text-blue-500">{currentProduct.proteins || 14} г</div>
-                      <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>белки</div>
+                    <div className="p-1.5 rounded-lg bg-slate-800/40">
+                      <div className="font-bold text-blue-400">{currentProduct.proteins || 14} г</div>
+                      <div className="text-[10px] text-slate-400">белки</div>
                     </div>
-                    <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
-                      <div className="text-xs font-black text-rose-500">{currentProduct.fats || 16} г</div>
-                      <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>жиры</div>
+                    <div className="p-1.5 rounded-lg bg-slate-800/40">
+                      <div className="font-bold text-rose-400">{currentProduct.fats || 16} г</div>
+                      <div className="text-[10px] text-slate-400">жиры</div>
                     </div>
-                    <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                      <div className="text-xs font-black text-emerald-500">{currentProduct.carbs || 22} г</div>
-                      <div className={`text-[10px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>углеводы</div>
+                    <div className="p-1.5 rounded-lg bg-slate-800/40">
+                      <div className="font-bold text-emerald-400">{currentProduct.carbs || 22} г</div>
+                      <div className="text-[10px] text-slate-400">углеводы</div>
                     </div>
                   </div>
                 </div>
 
-                {/* INGREDIENTS LIST (СОСТАВ БЛЮДА) */}
+                {/* Ingredients */}
                 {currentProduct.ingredients && currentProduct.ingredients.length > 0 && (
-                  <div className="space-y-1.5">
-                    <div className={`text-xs font-black uppercase tracking-wider ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
-                      Состав блюда
-                    </div>
-                    <ul className={`text-xs space-y-1 p-3 rounded-2xl border ${
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-slate-400">Состав</div>
+                    <ul className={`text-xs space-y-0.5 p-2.5 rounded-xl border ${
                       isDarkTheme ? 'text-slate-300 bg-slate-950/40 border-slate-800/60' : 'text-slate-700 bg-slate-50 border-slate-200'
                     }`}>
                       {currentProduct.ingredients.map((ing, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                        <li key={i} className="flex items-center gap-1.5 text-[11px]">
+                          <span className="w-1 h-1 rounded-full bg-blue-500" />
                           <span>{ing}</span>
                         </li>
                       ))}
@@ -1673,12 +1724,12 @@ export function App() {
                   </div>
                 )}
 
-                {/* ALLERGENS */}
+                {/* Allergens */}
                 {currentProduct.allergens && currentProduct.allergens.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className={`text-[11px] font-bold ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Аллергены:</span>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-[10px] text-slate-400">Аллергены:</span>
                     {currentProduct.allergens.map((alg, i) => (
-                      <span key={i} className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-500/15 text-red-500 border border-red-500/25">
+                      <span key={i} className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/10 text-red-400 border border-red-500/20">
                         {alg}
                       </span>
                     ))}
@@ -1686,52 +1737,47 @@ export function App() {
                 )}
               </div>
 
-              {/* Modal Bottom Footer / Add to Cart */}
-              <div className={`p-4 border-t flex items-center justify-between gap-3 ${
-                isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200 shadow-md'
+              {/* Modal Footer */}
+              <div className={`p-3 border-t flex items-center justify-between gap-3 ${
+                isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
               }`}>
                 <div>
-                  <div className={`text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Цена:</div>
-                  <div className={`text-xl font-black ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
+                  <div className="text-[10px] text-slate-400">Цена:</div>
+                  <div className={`text-lg font-bold ${isDarkTheme ? 'text-amber-400' : 'text-slate-900'}`}>
                     {currentProduct.price} ₽
                   </div>
-                  {currentProduct.oldPrice && currentProduct.oldPrice > currentProduct.price && (
-                    <div className="text-[10px] text-slate-400 line-through">
-                      {currentProduct.oldPrice} ₽
-                    </div>
-                  )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div>
                   {!isAvail ? (
-                    <div className="px-5 py-2.5 rounded-2xl bg-slate-800/80 text-slate-400 text-xs font-bold border border-slate-700/50">
-                      Стоп-лист (недоступно)
-                    </div>
+                    <span className="px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-xs font-medium">
+                      Недоступно
+                    </span>
                   ) : (cart[currentProduct.id] || 0) > 0 ? (
-                    <div className="flex items-center gap-2 bg-blue-600 rounded-2xl p-1.5 text-white">
+                    <div className="flex items-center gap-1.5 bg-blue-600 rounded-xl p-1 text-white">
                       <button 
                         onClick={() => removeFromCart(currentProduct.id)}
-                        className="w-8 h-8 rounded-xl bg-blue-700 flex items-center justify-center hover:bg-blue-800 active:scale-95 cursor-pointer"
+                        className="w-7 h-7 rounded-lg bg-blue-700 flex items-center justify-center hover:bg-blue-800 cursor-pointer"
                       >
-                        <Minus className="w-4 h-4" />
+                        <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-sm font-black px-2 min-w-[20px] text-center">
+                      <span className="text-xs font-bold px-2 text-center">
                         {cart[currentProduct.id]}
                       </span>
                       <button 
                         onClick={() => addToCart(currentProduct.id)}
-                        className="w-8 h-8 rounded-xl bg-blue-700 flex items-center justify-center hover:bg-blue-800 active:scale-95 cursor-pointer"
+                        className="w-7 h-7 rounded-lg bg-blue-700 flex items-center justify-center hover:bg-blue-800 cursor-pointer"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ) : (
                     <button
                       onClick={() => addToCart(currentProduct.id)}
-                      className="px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-500/25 active:scale-95 transition-transform flex items-center gap-2 cursor-pointer"
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
-                      <Plus className="w-4 h-4" />
-                      <span>Добавить в заказ</span>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>В корзину</span>
                     </button>
                   )}
                 </div>
@@ -1743,77 +1789,72 @@ export function App() {
 
       {/* ================= CART & CHECKOUT DRAWER ================= */}
       {isCartOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className={`w-full max-w-md h-full flex flex-col justify-between border-l shadow-2xl ${
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className={`w-full max-w-md h-full flex flex-col justify-between border-l ${
             isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}>
             
-            {/* Drawer Header */}
-            <div className={`p-4 border-b flex items-center justify-between ${isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}>
-              <div className="flex items-center gap-2 font-black text-sm">
+            {/* Header */}
+            <div className={`p-3.5 border-b flex items-center justify-between ${isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}>
+              <div className="flex items-center gap-2 font-bold text-xs">
                 <ShoppingBag className="w-4 h-4 text-blue-500" />
-                <span>Оформление заказа ({totalItemsCount})</span>
+                <span>Корзина ({totalItemsCount})</span>
               </div>
               <button 
                 onClick={() => setIsCartOpen(false)}
-                className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
-                  isDarkTheme ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
-                }`}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Scrollable Form & Items */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
               
-              {/* Cart Items list */}
               {cartItems.length === 0 ? (
-                <div className="text-center py-10 space-y-2">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${
-                    isDarkTheme ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    <ShoppingBag className="w-6 h-6" />
+                <div className="text-center py-16 space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-slate-800/60 flex items-center justify-center mx-auto text-slate-400">
+                    <ShoppingBag className="w-5 h-5" />
                   </div>
-                  <div className="text-sm font-bold">Корзина пуста</div>
-                  <p className={`text-xs ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Выберите блюда в меню, чтобы сделать заказ</p>
+                  <div className="text-xs font-semibold">Корзина пуста</div>
+                  <p className="text-[11px] text-slate-400">Выберите блюда в меню</p>
                 </div>
               ) : (
-                <div className="space-y-2.5">
-                  <div className={`text-xs font-black uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Ваш заказ:</div>
+                <div className="space-y-2">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase">Блюда в заказе:</div>
                   {cartItems.map(item => (
                     <div 
                       key={item.product.id}
-                      className={`flex items-center justify-between p-2.5 rounded-2xl border text-xs ${
+                      className={`flex items-center justify-between p-2 rounded-xl border text-xs ${
                         isDarkTheme ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <img src={item.product.image} alt={item.product.name} className="w-10 h-10 rounded-xl object-cover" />
-                        <div>
-                          <div className={`font-bold line-clamp-1 ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>{item.product.name}</div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="flex items-center gap-2 truncate max-w-[190px]">
+                        <img src={item.product.image} alt={item.product.name} className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                        <div className="truncate">
+                          <div className="font-semibold truncate">{item.product.name}</div>
+                          <div className="flex items-center gap-1">
                             <span className="text-amber-500 font-bold">{item.product.price} ₽</span>
                             {item.product.isAvailable === false && (
-                              <span className="text-[10px] font-bold text-red-500 bg-red-500/15 px-1.5 py-0.5 rounded border border-red-500/20">
-                                Стоп-лист
+                              <span className="text-[9px] font-bold text-red-400 bg-red-500/10 px-1 py-0.5 rounded">
+                                Стоп
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 bg-blue-600 rounded-xl p-1 text-white">
+                      <div className="flex items-center gap-1 bg-blue-600 rounded-lg p-0.5 text-white">
                         <button 
                           onClick={() => removeFromCart(item.product.id)}
-                          className="w-5 h-5 rounded-lg bg-blue-700 flex items-center justify-center cursor-pointer"
+                          className="w-5 h-5 rounded flex items-center justify-center cursor-pointer"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className="text-xs font-black px-1 min-w-[14px] text-center">{item.quantity}</span>
+                        <span className="text-xs font-bold px-1 text-center">{item.quantity}</span>
                         <button 
                           onClick={() => addToCart(item.product.id)}
-                          className="w-5 h-5 rounded-lg bg-blue-700 flex items-center justify-center cursor-pointer"
+                          className="w-5 h-5 rounded flex items-center justify-center cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -1823,246 +1864,207 @@ export function App() {
                 </div>
               )}
 
-              {/* PROMOCODE SECTION */}
+              {/* Promocode */}
               {cartItems.length > 0 && (
-                <div className="space-y-1.5 pt-2">
-                  <div className={`text-xs font-black uppercase flex items-center gap-1 ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
-                    <Tag className="w-3.5 h-3.5 text-blue-500" />
-                    <span>Промокод на скидку</span>
+                <div className="space-y-1.5 pt-1">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-blue-500" />
+                    <span>Промокод</span>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <input
                       type="text"
                       value={promoCodeInput}
                       onChange={e => setPromoCodeInput(e.target.value)}
-                      placeholder="Введите код (например, VIBE20)"
-                      className={`flex-1 px-3 py-2 rounded-xl text-xs uppercase border focus:outline-none focus:border-blue-500 ${
-                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white'
+                      placeholder="Код (например VIBE20)"
+                      className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs uppercase border focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-200 text-slate-900'
                       }`}
                     />
                     <button
                       type="button"
                       onClick={handleApplyPromo}
-                      className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs cursor-pointer"
                     >
                       Применить
                     </button>
                   </div>
                   {appliedPromo && (
-                    <div className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5" /> Промокод {appliedPromo.code} применен! (-{discountAmount} ₽)
+                    <div className="text-[11px] text-emerald-400 font-medium">
+                      Промокод {appliedPromo.code} применен!
                     </div>
                   )}
                   {promoError && (
-                    <div className="text-[11px] text-red-500 font-medium">
+                    <div className="text-[11px] text-red-400 font-medium">
                       {promoError}
                     </div>
                   )}
                 </div>
               )}
 
-              {/* CUTLERY (ПРИБОРЫ) */}
+              {/* Cutlery & Tips */}
               {cartItems.length > 0 && (
-                <div className="space-y-1.5 pt-2">
-                  <div className={`text-xs font-black uppercase flex items-center gap-1 ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
-                    <Utensils className="w-3.5 h-3.5 text-blue-500" />
-                    <span>Приборы и салфетки (бесплатно)</span>
-                  </div>
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map(n => (
+                <div className="space-y-3 pt-1">
+                  {/* Cutlery */}
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                    isDarkTheme ? 'bg-slate-950/40 border-slate-800/60' : 'bg-slate-50 border-slate-200'
+                  }`}>
+                    <div className="text-xs font-medium">Приборы:</div>
+                    <div className="flex items-center gap-1.5">
                       <button
-                        key={n}
                         type="button"
-                        onClick={() => setCutleryCount(n)}
-                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                          cutleryCount === n 
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
-                            : isDarkTheme ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                        }`}
+                        onClick={() => setCutleryCount(prev => Math.max(0, prev - 1))}
+                        className="w-6 h-6 rounded bg-slate-800 text-white flex items-center justify-center cursor-pointer"
                       >
-                        {n} перс.
+                        <Minus className="w-3 h-3" />
                       </button>
-                    ))}
+                      <span className="text-xs font-bold px-1.5">{cutleryCount}</span>
+                      <button
+                        type="button"
+                        onClick={() => setCutleryCount(prev => Math.min(6, prev + 1))}
+                        className="w-6 h-6 rounded bg-slate-800 text-white flex items-center justify-center cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tips */}
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase">Чаевые курьеру:</div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[0, 50, 100, 150].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => {
+                            setTipsAmount(amt);
+                            playSound('add');
+                          }}
+                          className={`py-1.5 rounded-lg text-xs font-medium border cursor-pointer ${
+                            tipsAmount === amt
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold'
+                              : 'bg-slate-800/40 border-slate-700/50 text-slate-300'
+                          }`}
+                        >
+                          {amt === 0 ? '0 ₽' : `+${amt} ₽`}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* COURIER TIPS (ЧАЕВЫЕ КУРЬЕРУ) */}
+              {/* Order Form */}
               {cartItems.length > 0 && (
-                <div className="space-y-1.5 pt-2">
-                  <div className={`text-xs font-black uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Благодарность курьеру (чаевые)
-                  </div>
-                  <div className="flex gap-2">
-                    {[0, 50, 100, 150].map(tip => (
-                      <button
-                        key={tip}
-                        type="button"
-                        onClick={() => setTipsAmount(tip)}
-                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                          tipsAmount === tip 
-                            ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs' 
-                            : isDarkTheme ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        {tip === 0 ? 'Без чаевых' : `+${tip} ₽`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* CUSTOMER CONTACT FORM */}
-              {cartItems.length > 0 && (
-                <form id="order-form" onSubmit={handleSubmitOrder} className="space-y-3 pt-3">
-                  <div className={`text-xs font-black uppercase ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Контакты и доставка:</div>
-
-                  {/* Name */}
+                <form id="order-form" onSubmit={handleSubmitOrder} className="space-y-2.5 pt-2">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase">Данные доставки:</div>
+                  
                   <div>
                     <input
                       type="text"
                       value={customerName}
                       onChange={e => setCustomerName(e.target.value)}
-                      placeholder="Имя и Фамилия получателя *"
-                      className={`w-full p-3 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
-                        isDarkTheme ? 'bg-slate-950 text-white placeholder:text-slate-600' : 'bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white'
-                      } ${formErrors.customerName ? 'border-red-500' : isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}
+                      placeholder="Имя и Фамилия"
+                      className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-200'
+                      }`}
                     />
-                    {formErrors.customerName && (
-                      <span className="text-[10px] text-red-500 mt-1 block">{formErrors.customerName}</span>
-                    )}
+                    {formErrors.customerName && <div className="text-[10px] text-red-400 mt-0.5">{formErrors.customerName}</div>}
                   </div>
 
-                  {/* Phone with Mask */}
                   <div>
                     <input
-                      type="tel"
+                      type="text"
                       value={phone}
                       onChange={e => setPhone(formatRussianPhone(e.target.value))}
-                      placeholder="+7 (9XX) XXX-XX-XX *"
-                      className={`w-full p-3 rounded-xl border text-xs font-mono focus:outline-none focus:border-blue-500 ${
-                        isDarkTheme ? 'bg-slate-950 text-white placeholder:text-slate-600' : 'bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white'
-                      } ${formErrors.phone ? 'border-red-500' : isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}
+                      placeholder="+7 (9XX) XXX-XX-XX"
+                      className={`w-full px-3 py-2 rounded-xl text-xs font-mono border focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-200'
+                      }`}
                     />
-                    {formErrors.phone && (
-                      <span className="text-[10px] text-red-500 mt-1 block">{formErrors.phone}</span>
-                    )}
+                    {formErrors.phone && <div className="text-[10px] text-red-400 mt-0.5">{formErrors.phone}</div>}
                   </div>
 
-                  {/* Email */}
                   <div>
                     <input
                       type="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
-                      placeholder="Email для электронного чека *"
-                      className={`w-full p-3 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
-                        isDarkTheme ? 'bg-slate-950 text-white placeholder:text-slate-600' : 'bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white'
-                      } ${formErrors.email ? 'border-red-500' : isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}
+                      placeholder="Email для чека"
+                      className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-200'
+                      }`}
                     />
-                    {formErrors.email && (
-                      <span className="text-[10px] text-red-500 mt-1 block">{formErrors.email}</span>
-                    )}
+                    {formErrors.email && <div className="text-[10px] text-red-400 mt-0.5">{formErrors.email}</div>}
                   </div>
 
-                  {/* Address */}
                   <div>
                     <input
                       type="text"
                       value={address}
                       onChange={e => setAddress(e.target.value)}
-                      placeholder="Адрес доставки (город, улица, дом, кв.) *"
-                      className={`w-full p-3 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
-                        isDarkTheme ? 'bg-slate-950 text-white placeholder:text-slate-600' : 'bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white'
-                      } ${formErrors.address ? 'border-red-500' : isDarkTheme ? 'border-slate-800' : 'border-slate-200'}`}
+                      placeholder="Адрес (город, улица, дом, кв)"
+                      className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-200'
+                      }`}
                     />
-                    {formErrors.address && (
-                      <span className="text-[10px] text-red-500 mt-1 block">{formErrors.address}</span>
-                    )}
-
-                    {/* Recent Addresses Chips */}
-                    {savedAddresses.length > 0 && (
-                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        <span className={`text-[10px] ${isDarkTheme ? 'text-slate-500' : 'text-slate-400'}`}>Недавние:</span>
-                        {savedAddresses.map((addr, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setAddress(addr)}
-                            className={`text-[10px] px-2 py-0.5 rounded-md truncate max-w-[140px] cursor-pointer transition-colors ${
-                              isDarkTheme ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            {addr}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {formErrors.address && <div className="text-[10px] text-red-400 mt-0.5">{formErrors.address}</div>}
                   </div>
 
-                  {/* Comment */}
                   <div>
                     <input
                       type="text"
                       value={comment}
                       onChange={e => setComment(e.target.value)}
-                      placeholder="Комментарий (код домофона, этаж)"
-                      className={`w-full p-3 rounded-xl border text-xs focus:outline-none focus:border-blue-500 ${
-                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white'
+                      placeholder="Комментарий для курьера (код домофона, этаж)"
+                      className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none focus:border-blue-500 ${
+                        isDarkTheme ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-200'
                       }`}
                     />
                   </div>
 
                   {/* Payment Method Notice */}
-                  <div className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs ${
-                    isDarkTheme ? 'border-slate-800 bg-slate-950/60 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'
+                  <div className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs ${
+                    isDarkTheme ? 'bg-slate-950/40 border-slate-800/60 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
                   }`}>
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-                      <Banknote className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className={`font-bold ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>Оплата при получении</div>
-                      <div className={`text-[11px] ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>Наличными или банковской картой курьеру</div>
-                    </div>
+                    <Banknote className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>Оплата при получении (наличными или картой)</span>
                   </div>
                 </form>
               )}
             </div>
 
-            {/* Drawer Footer */}
+            {/* Bottom Checkout Actions */}
             {cartItems.length > 0 && (
-              <div className={`p-4 border-t space-y-2.5 ${
-                isDarkTheme ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-white shadow-lg'
-              }`}>
+              <div className={`p-3.5 border-t space-y-2.5 ${isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
                 <div className="space-y-1 text-xs">
-                  <div className={`flex justify-between ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
+                  <div className="flex justify-between text-slate-400">
                     <span>Сумма блюд:</span>
                     <span>{subtotalPrice} ₽</span>
                   </div>
                   {discountAmount > 0 && (
-                    <div className="flex justify-between text-emerald-500 font-semibold">
-                      <span>Скидка по промокоду:</span>
+                    <div className="flex justify-between text-emerald-400">
+                      <span>Скидка:</span>
                       <span>-{discountAmount} ₽</span>
                     </div>
                   )}
                   {tipsAmount > 0 && (
-                    <div className="flex justify-between text-amber-500 font-semibold">
-                      <span>Чаевые курьеру:</span>
+                    <div className="flex justify-between text-amber-500">
+                      <span>Чаевые:</span>
                       <span>+{tipsAmount} ₽</span>
                     </div>
                   )}
-                  <div className={`flex justify-between items-center text-sm font-black pt-1 border-t ${
-                    isDarkTheme ? 'border-slate-800 text-white' : 'border-slate-100 text-slate-900'
-                  }`}>
+                  <div className="flex justify-between items-center text-sm font-bold pt-1 border-t border-slate-800">
                     <span>Итого:</span>
-                    <span className="text-amber-500 text-lg">{totalPrice} ₽</span>
+                    <span className="text-amber-500 text-base">{totalPrice} ₽</span>
                   </div>
                 </div>
 
                 {cartItems.some(i => i.product.isAvailable === false) && (
-                  <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold text-center">
-                    В заказе есть блюда из стоп-листа. Удалите их для оформления.
+                  <div className="p-2 rounded-lg bg-red-500/10 text-red-400 text-xs text-center">
+                    В заказе есть блюда из стоп-листа.
                   </div>
                 )}
 
@@ -2070,13 +2072,13 @@ export function App() {
                   type="submit"
                   form="order-form"
                   disabled={cartItems.some(i => i.product.isAvailable === false)}
-                  className={`w-full py-3.5 rounded-2xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
+                  className={`w-full py-3 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 ${
                     cartItems.some(i => i.product.isAvailable === false)
-                      ? 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-60'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20 active:scale-98 cursor-pointer'
+                      ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
                   }`}
                 >
-                  <span>Подтвердить заказ ({totalPrice} ₽)</span>
+                  <span>Оформить заказ ({totalPrice} ₽)</span>
                 </button>
               </div>
             )}
@@ -2084,31 +2086,24 @@ export function App() {
         </div>
       )}
 
-      {/* ================= ORDER DELETE CONFIRMATION MODAL ================= */}
+      {/* ================= ORDER DELETE MODAL ================= */}
       {orderToDelete && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in zoom-in-95">
-          <div className={`w-full max-w-sm rounded-3xl p-5 border text-center space-y-3 shadow-2xl ${
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+          <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${
             isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}>
-            <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-black">Удалить заказ #{orderToDelete.orderNumber}?</h3>
-            <p className={`text-xs ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
-              Заказ будет удален из истории. Это действие нельзя отменить.
-            </p>
-            <div className="flex gap-2 pt-2">
+            <h3 className="text-xs font-bold">Удалить заказ #{orderToDelete.orderNumber}?</h3>
+            <p className="text-[11px] text-slate-400">Заказ будет удален из истории.</p>
+            <div className="flex gap-2 pt-1">
               <button
                 onClick={() => setOrderToDelete(null)}
-                className={`flex-1 py-2.5 rounded-xl font-bold text-xs cursor-pointer transition-colors ${
-                  isDarkTheme ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                }`}
+                className="flex-1 py-1.5 rounded-lg border border-slate-700 text-xs font-medium cursor-pointer"
               >
                 Отмена
               </button>
               <button
                 onClick={confirmDeleteOrder}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer"
+                className="flex-1 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium cursor-pointer"
               >
                 Удалить
               </button>
@@ -2117,40 +2112,65 @@ export function App() {
         </div>
       )}
 
-      {/* ================= ORDER SUCCESS MODAL ================= */}
-      {orderSuccess && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in zoom-in-95">
-          <div className={`w-full max-w-sm rounded-3xl p-6 border text-center shadow-2xl space-y-4 ${
+      {/* ================= CLEAR ALL ORDERS MODAL (Admin only) ================= */}
+      {showClearConfirmModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+          <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${
             isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}>
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto border border-emerald-500/30">
-              <CheckCircle2 className="w-10 h-10" />
+            <div className="w-10 h-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center mx-auto">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <h3 className="text-xs font-bold">Очистить ВСЮ историю заказов?</h3>
+            <p className="text-[11px] text-slate-400">
+              Это действие удалит абсолютно все заказы из базы данных навсегда.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                disabled={isClearingOrders}
+                onClick={() => setShowClearConfirmModal(false)}
+                className="flex-1 py-1.5 rounded-lg border border-slate-700 text-xs font-medium cursor-pointer"
+              >
+                Отмена
+              </button>
+              <button
+                disabled={isClearingOrders}
+                onClick={handleClearAllOrders}
+                className="flex-1 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium cursor-pointer"
+              >
+                {isClearingOrders ? 'Очистка...' : 'Да, очистить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ORDER SUCCESS MODAL ================= */}
+      {orderSuccess && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+          <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${
+            isDarkTheme ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-black">Заказ #{orderSuccess.orderNumber} принят!</h2>
-              <p className={`text-xs mt-1 ${isDarkTheme ? 'text-slate-400' : 'text-slate-600'}`}>
-                Шеф-повар уже получил ваш заказ. Вы можете следить за стадиями приготовления во вкладке «Мои заказы».
+              <h2 className="text-sm font-bold">Заказ #{orderSuccess.orderNumber} принят!</h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Вы можете следить за стадией во вкладке «Заказы»
               </p>
             </div>
 
-            <div className={`p-3.5 rounded-2xl border text-left text-xs space-y-1.5 ${
+            <div className={`p-2.5 rounded-xl border text-left text-[11px] space-y-1 ${
               isDarkTheme ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}>
               <div className="flex justify-between">
-                <span className={isDarkTheme ? 'text-slate-400' : 'text-slate-500'}>Получатель:</span>
-                <span className={`font-semibold ${isDarkTheme ? 'text-slate-200' : 'text-slate-900'}`}>{orderSuccess.customerName}</span>
+                <span className="text-slate-400">Сумма:</span>
+                <span className="font-bold text-amber-500">{orderSuccess.totalPrice} ₽</span>
               </div>
               <div className="flex justify-between">
-                <span className={isDarkTheme ? 'text-slate-400' : 'text-slate-500'}>Телефон:</span>
-                <span className="font-medium text-blue-500">{orderSuccess.phone}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className={isDarkTheme ? 'text-slate-400' : 'text-slate-500'}>Сумма:</span>
-                <span className="font-black text-amber-500">{orderSuccess.totalPrice} ₽</span>
-              </div>
-              <div className="flex justify-between">
-                <span className={isDarkTheme ? 'text-slate-400' : 'text-slate-500'}>Адрес:</span>
-                <span className={`font-medium truncate max-w-[180px] ${isDarkTheme ? 'text-slate-300' : 'text-slate-800'}`}>{orderSuccess.address}</span>
+                <span className="text-slate-400">Оплата:</span>
+                <span>При получении</span>
               </div>
             </div>
 
@@ -2160,9 +2180,9 @@ export function App() {
                 setOrderSuccess(null);
                 setActiveTab('orders');
               }}
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-md shadow-blue-500/20"
+              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs cursor-pointer"
             >
-              Перейти к отслеживанию
+              Перейти к заказам
             </button>
           </div>
         </div>

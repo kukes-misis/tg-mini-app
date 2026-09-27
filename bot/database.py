@@ -5,8 +5,11 @@ from datetime import datetime
 DB_PATH = "store.db"
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     cursor = conn.cursor()
+
+    # Enable WAL mode for concurrent access
+    cursor.execute("PRAGMA journal_mode=WAL;")
 
     # Settings table
     cursor.execute("""
@@ -80,15 +83,19 @@ def init_db():
     conn.commit()
     conn.close()
 
+def _connect():
+    """Helper to get a connection with WAL mode and timeout."""
+    return sqlite3.connect(DB_PATH, timeout=10)
+
 def set_setting(key: str, value: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cursor = conn.cursor()
     cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
     conn.commit()
     conn.close()
 
 def get_setting(key: str, default=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cursor = conn.cursor()
     cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
     row = cursor.fetchone()
@@ -96,7 +103,7 @@ def get_setting(key: str, default=None):
     return row[0] if row else default
 
 def create_order(order_number, user_id, user_name, username, phone, email, address, items, total_price, payment_method, comment=""):
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cursor = conn.cursor()
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cursor.execute("""
@@ -120,7 +127,7 @@ def create_order(order_number, user_id, user_name, username, phone, email, addre
     conn.close()
 
 def get_orders(limit=20, status=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     if status:
@@ -132,13 +139,13 @@ def get_orders(limit=20, status=None):
     for o in orders:
         try:
             o['items'] = json.loads(o['items_json'])
-        except:
+        except Exception:
             o['items'] = []
     conn.close()
     return orders
 
 def get_order_by_number(order_number):
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM orders WHERE order_number = ?", (order_number,))
@@ -147,27 +154,27 @@ def get_order_by_number(order_number):
     if order:
         try:
             order['items'] = json.loads(order['items_json'])
-        except:
+        except Exception:
             order['items'] = []
     conn.close()
     return order
 
 def update_order_status(order_number, new_status):
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cursor = conn.cursor()
     cursor.execute("UPDATE orders SET status = ? WHERE order_number = ?", (new_status, order_number))
     conn.commit()
     conn.close()
 
 def update_order_payment(order_number, payment_status):
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cursor = conn.cursor()
     cursor.execute("UPDATE orders SET payment_status = ? WHERE order_number = ?", (payment_status, order_number))
     conn.commit()
     conn.close()
 
 def delete_order(order_number):
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM orders WHERE order_number = ?", (order_number,))
     deleted = cursor.rowcount > 0
@@ -175,8 +182,18 @@ def delete_order(order_number):
     conn.close()
     return deleted
 
+def clear_all_orders():
+    """Delete ALL orders from the database."""
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM orders")
+    count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return count
+
 def get_products():
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM products ORDER BY category, id")
@@ -186,7 +203,7 @@ def get_products():
     return prods
 
 def update_product_price(product_id, new_price):
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cursor = conn.cursor()
     cursor.execute("UPDATE products SET price = ? WHERE id = ?", (new_price, product_id))
     if cursor.rowcount == 0:
@@ -195,7 +212,7 @@ def update_product_price(product_id, new_price):
     conn.close()
 
 def toggle_product_availability(product_id):
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cursor = conn.cursor()
     cursor.execute("SELECT is_available FROM products WHERE id = ?", (product_id,))
     row = cursor.fetchone()
@@ -210,7 +227,7 @@ def toggle_product_availability(product_id):
     return new_val
 
 def get_analytics():
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect()
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*), COALESCE(SUM(total_price), 0) FROM orders")
     total_orders, total_revenue = cursor.fetchone()
