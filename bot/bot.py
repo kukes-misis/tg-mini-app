@@ -34,18 +34,11 @@ def get_keyboard(username: str | None, user_id: int | None):
     buttons = [
         [
             KeyboardButton(
-                text="🛍️ Открыть магазин (Mini App)", 
+                text="🛍️ Открыть ресторан & меню", 
                 web_app=WebAppInfo(url=WEBAPP_URL)
             )
         ]
     ]
-    if is_admin(username, user_id):
-        buttons.append([KeyboardButton(text="👑 Панель управления (Админ)")])
-
-    buttons.append([
-        KeyboardButton(text="💬 Поддержка"),
-        KeyboardButton(text="ℹ️ О проекте")
-    ])
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 @dp.message(CommandStart())
@@ -62,22 +55,22 @@ async def handle_start(message: types.Message):
         logging.info(f"Registered admin chat_id: {user_id} for user @{username}")
 
     welcome_text = (
-        f"👋 *Здравствуйте, {user_name}!* \n\n"
-        "Добро пожаловать в демонстрационный интернет-магазин нового поколения на базе *Telegram Mini App*.\n\n"
-        "✨ *Преимущества формата:*\n"
-        "• Мгновенно открывается внутри Telegram\n"
-        "• Встроенная проверка данных и моментальное оформление\n"
-        "• Плавный адаптивный интерфейс с корзиной и выбором доставки\n"
-        "• Онлайн-оплата картами и через СБП (ЮKassa)\n\n"
+        f"👋 <b>Здравствуйте, {html.escape(user_name)}!</b>\n\n"
+        "Добро пожаловать в ресторан авторской кухни!\n\n"
+        "Всё взаимодействие происходит внутри нашего официального <b>Mini App</b>:\n"
+        "• Полный каталог блюд с составом и КБЖУ\n"
+        "• Отслеживание стадий приготовления и доставки\n"
+        "• История заказов, повтор в 1 клик и промокоды\n"
+        "• Круглосуточная служба заботы и поддержки\n\n"
     )
     if is_admin(username, user_id):
-        welcome_text += "👑 *Вы авторизованы как Администратор (@qqeaux)*. Оповещения о новых заказах подключены.\n\n"
+        welcome_text += "👑 <b>Вы авторизованы как Администратор (@qqeaux)</b>. Панель управления доступна внутри приложения во вкладке «Админка».\n\n"
 
-    welcome_text += "👇 *Нажмите кнопку ниже, чтобы открыть приложение:* "
+    welcome_text += "👇 <b>Нажмите кнопку ниже, чтобы открыть ресторан:</b>"
     await message.answer(
         welcome_text, 
         reply_markup=get_keyboard(username, user_id),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 # --- ADMIN PANEL ---
@@ -275,15 +268,30 @@ async def cb_update_status(callback: types.CallbackQuery):
     # Automatically notify the customer in their Telegram chat
     if order and order.get('user_id'):
         status_client_msgs = {
-            "cooking": f"👨‍🍳 *Ваш заказ #{order_num} передан на кухню и уже готовится!*",
-            "delivering": f"🚴 *Курьер забрал заказ #{order_num} и выехал по адресу: {order.get('address')}!*",
-            "completed": f"🎉 *Заказ #{order_num} успешно доставлен!* Приятного аппетита! Ждем вас снова.",
-            "cancelled": f"❌ *Заказ #{order_num} был отменен.* Если есть вопросы, свяжитесь с поддержкой."
+            "cooking": f"👨‍🍳 <b>Ваш заказ #{order_num} передан на кухню и уже готовится!</b>\n\nШеф-повар собирает ингредиенты. Вы можете следить за стадиями заказа прямо в приложении.",
+            "delivering": f"🚴 <b>Курьер забрал заказ #{order_num} и выехал!</b>\n\nАдрес доставки: {html.escape(order.get('address', ''))}. Курьер скоро будет у вас.",
+            "completed": f"🎉 <b>Заказ #{order_num} успешно доставлен!</b>\n\nПриятного аппетита! Будем рады вашему отзыву.",
+            "cancelled": f"❌ <b>Заказ #{order_num} был отменен.</b>\n\nЕсли у вас есть вопросы, служба заботы всегда на связи в приложении."
         }
         client_text = status_client_msgs.get(new_status)
         if client_text:
+            track_kb = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="📱 Открыть статус в приложении", 
+                            web_app=WebAppInfo(url=f"{WEBAPP_URL}?tab=orders&order={order_num}")
+                        )
+                    ]
+                ]
+            )
             try:
-                await bot.send_message(chat_id=order['user_id'], text=client_text, parse_mode="Markdown")
+                await bot.send_message(
+                    chat_id=order['user_id'], 
+                    text=client_text, 
+                    reply_markup=track_kb,
+                    parse_mode="HTML"
+                )
             except Exception as e:
                 logging.warning(f"Could not notify customer {order['user_id']}: {e}")
 
@@ -507,11 +515,20 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
         )
         if comment:
             receipt_text += f"💬 *Комментарий:* {comment}\n"
-        receipt_text += "\n⏱ *Ориентировочное время доставки:* 35–45 минут."
+        receipt_kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📱 Открыть статус в приложении", 
+                        web_app=WebAppInfo(url=f"{WEBAPP_URL}?tab=orders&order={order_num}")
+                    )
+                ]
+            ]
+        )
         try:
-            await message.answer(receipt_text, parse_mode="Markdown")
+            await message.answer(receipt_text, reply_markup=receipt_kb, parse_mode="Markdown")
         except Exception:
-            await message.answer(receipt_text)
+            await message.answer(receipt_text, reply_markup=receipt_kb)
 
     # If duplicate push alert, return early
     if is_duplicate:
@@ -752,16 +769,17 @@ async def handle_about(message: types.Message):
 async def health_check(request):
     return web.Response(text="Bot & Admin API is running 24/7!", status=200)
 
+async def handle_cors_options(request):
+    return web.Response(
+        status=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        }
+    )
+
 async def handle_api_orders(request):
-    if request.method == "OPTIONS":
-        return web.Response(
-            status=200,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type",
-            }
-        )
     try:
         data = await request.json()
         logging.info(f"API order received: #{data.get('orderNumber')}")
@@ -778,12 +796,115 @@ async def handle_api_orders(request):
             headers={"Access-Control-Allow-Origin": "*"}
         )
 
+async def handle_get_orders(request):
+    try:
+        orders = db.get_orders(limit=100)
+        return web.json_response(orders, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        logging.error(f"Error getting orders: {e}")
+        return web.json_response([], headers={"Access-Control-Allow-Origin": "*"})
+
+async def handle_delete_order(request):
+    try:
+        data = await request.json()
+        order_num = data.get("orderNumber")
+        if order_num:
+            deleted = db.delete_order(order_num)
+            logging.info(f"Order #{order_num} deleted: {deleted}")
+            return web.json_response({"ok": True, "deleted": deleted}, headers={"Access-Control-Allow-Origin": "*"})
+        return web.json_response({"ok": False, "error": "orderNumber required"}, status=400, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        logging.error(f"Error deleting order: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=500, headers={"Access-Control-Allow-Origin": "*"})
+
+async def handle_update_order_status(request):
+    try:
+        data = await request.json()
+        order_num = data.get("orderNumber")
+        new_status = data.get("status")
+        if not order_num or not new_status:
+            return web.json_response({"ok": False, "error": "Invalid params"}, status=400, headers={"Access-Control-Allow-Origin": "*"})
+
+        db.update_order_status(order_num, new_status)
+        order = db.get_order_by_number(order_num)
+        if order and order.get('user_id'):
+            status_client_msgs = {
+                "cooking": f"👨‍🍳 <b>Ваш заказ #{order_num} передан на кухню и уже готовится!</b>\n\nШеф-повар собирает ингредиенты. Вы можете следить за стадиями заказа прямо в приложении.",
+                "delivering": f"🚴 <b>Курьер забрал заказ #{order_num} и выехал!</b>\n\nАдрес доставки: {html.escape(order.get('address', ''))}. Курьер скоро будет у вас.",
+                "completed": f"🎉 <b>Заказ #{order_num} успешно доставлен!</b>\n\nПриятного аппетита! Будем рады вашему отзыву.",
+                "cancelled": f"❌ <b>Заказ #{order_num} был отменен.</b>\n\nЕсли у вас есть вопросы, служба заботы всегда на связи в приложении."
+            }
+            client_text = status_client_msgs.get(new_status)
+            if client_text:
+                track_kb = InlineKeyboardMarkup(
+                    inline_keyboard=[[
+                        InlineKeyboardButton(
+                            text="📱 Открыть статус в приложении", 
+                            web_app=WebAppInfo(url=f"{WEBAPP_URL}?tab=orders&order={order_num}")
+                        )
+                    ]]
+                )
+                try:
+                    await bot.send_message(chat_id=order['user_id'], text=client_text, reply_markup=track_kb, parse_mode="HTML")
+                except Exception as e:
+                    logging.warning(f"Could not notify customer: {e}")
+
+        return web.json_response({"ok": True}, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        logging.error(f"Error updating order status: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=500, headers={"Access-Control-Allow-Origin": "*"})
+
+async def handle_get_products(request):
+    try:
+        products = db.get_products()
+        return web.json_response(products, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        logging.error(f"Error fetching products: {e}")
+        return web.json_response([], headers={"Access-Control-Allow-Origin": "*"})
+
+async def handle_update_price(request):
+    try:
+        data = await request.json()
+        product_id = data.get("productId")
+        price = data.get("price")
+        if product_id and price is not None:
+            db.update_product_price(product_id, int(price))
+            return web.json_response({"ok": True}, headers={"Access-Control-Allow-Origin": "*"})
+        return web.json_response({"ok": False, "error": "Invalid params"}, status=400, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        logging.error(f"Error updating price: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=500, headers={"Access-Control-Allow-Origin": "*"})
+
+async def handle_toggle_product(request):
+    try:
+        data = await request.json()
+        product_id = data.get("productId")
+        if product_id:
+            new_val = db.toggle_product_availability(product_id)
+            return web.json_response({"ok": True, "is_available": new_val}, headers={"Access-Control-Allow-Origin": "*"})
+        return web.json_response({"ok": False, "error": "productId required"}, status=400, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        logging.error(f"Error toggling product: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=500, headers={"Access-Control-Allow-Origin": "*"})
+
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/", health_check)
     app.router.add_get("/health", health_check)
+    
+    # Orders API
+    app.router.add_get("/api/orders", handle_get_orders)
     app.router.add_post("/api/orders", handle_api_orders)
-    app.router.add_route("OPTIONS", "/api/orders", handle_api_orders)
+    app.router.add_post("/api/orders/delete", handle_delete_order)
+    app.router.add_post("/api/orders/status", handle_update_order_status)
+
+    # Products API
+    app.router.add_get("/api/products", handle_get_products)
+    app.router.add_post("/api/products/price", handle_update_price)
+    app.router.add_post("/api/products/toggle", handle_toggle_product)
+
+    # CORS Preflight
+    app.router.add_route("OPTIONS", "/{tail:.*}", handle_cors_options)
     
     port = int(os.getenv("PORT", 8080))
     runner = web.AppRunner(app)
@@ -796,6 +917,15 @@ async def main():
     logging.info("🤖 Starting Telegram Bot with Admin Notifications & Anti-Fraud...")
     await start_web_server()
     await bot.delete_webhook(drop_pending_updates=True)
+    try:
+        await bot.set_chat_menu_button(
+            menu_button=types.MenuButtonWebApp(
+                text="Ресторан & Меню",
+                web_app=WebAppInfo(url=WEBAPP_URL)
+            )
+        )
+    except Exception as e:
+        logging.warning(f"Could not set chat menu button: {e}")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

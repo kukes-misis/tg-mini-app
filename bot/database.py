@@ -166,6 +166,15 @@ def update_order_payment(order_number, payment_status):
     conn.commit()
     conn.close()
 
+def delete_order(order_number):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM orders WHERE order_number = ?", (order_number,))
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
 def get_products():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row

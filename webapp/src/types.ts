@@ -9,6 +9,13 @@ export interface Product {
   badge?: string;
   weight?: string;
   isAvailable?: boolean;
+  ingredients?: string[];
+  calories?: number; // ккал
+  proteins?: number; // г
+  fats?: number;     // г
+  carbs?: number;    // г
+  allergens?: string[];
+  spicy?: boolean;
 }
 
 export interface CartItem {
@@ -27,8 +34,14 @@ export interface OrderData {
     name: string;
     quantity: number;
     price: number;
+    image?: string;
   }[];
   totalPrice: number;
+  subtotal?: number;
+  discount?: number;
+  promoCode?: string;
+  cutlery?: number;
+  tips?: number;
   customerName: string;
   phone: string;
   email: string;
@@ -38,6 +51,7 @@ export interface OrderData {
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
   createdAt?: string;
+  deletedForUser?: boolean;
 }
 
 declare global {
