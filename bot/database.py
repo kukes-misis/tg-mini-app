@@ -189,15 +189,22 @@ def update_product_price(product_id, new_price):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("UPDATE products SET price = ? WHERE id = ?", (new_price, product_id))
+    if cursor.rowcount == 0:
+        cursor.execute("INSERT INTO products (id, price, is_available) VALUES (?, ?, 1)", (product_id, new_price))
     conn.commit()
     conn.close()
 
 def toggle_product_availability(product_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("UPDATE products SET is_available = CASE WHEN is_available = 1 THEN 0 ELSE 1 END WHERE id = ?", (product_id,))
     cursor.execute("SELECT is_available FROM products WHERE id = ?", (product_id,))
-    new_val = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    if row is None:
+        cursor.execute("INSERT INTO products (id, is_available) VALUES (?, 0)", (product_id,))
+        new_val = 0
+    else:
+        new_val = 0 if row[0] == 1 else 1
+        cursor.execute("UPDATE products SET is_available = ? WHERE id = ?", (new_val, product_id))
     conn.commit()
     conn.close()
     return new_val

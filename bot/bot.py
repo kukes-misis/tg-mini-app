@@ -509,7 +509,7 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
             f"💵 *Итого к оплате:* {total_price} ₽\n"
             f"💳 *Способ оплаты:* {payment_str}\n\n"
             f"👤 *Получатель:* {customer_name}\n"
-            f"📞 *Телефон (проверен):* {phone}\n"
+            f"📞 *Телефон:* {phone}\n"
             f"📧 *Email для чека:* {email}\n"
             f"📍 *Адрес доставки:* {address}\n"
         )
@@ -549,7 +549,7 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
         f"🚨 <b>НОВЫЙ ЗАКАЗ #{html.escape(order_num)}!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 <b>Клиент:</b> {html.escape(customer_name)} ({uname_str})\n"
-        f"📞 <b>Телефон:</b> <code>{html.escape(phone)}</code> <i>(🛡️ проверен)</i>\n"
+        f"📞 <b>Телефон:</b> <code>{html.escape(phone)}</code>\n"
         f"📧 <b>Email:</b> <code>{html.escape(email)}</code>\n"
         f"📍 <b>Адрес:</b> {html.escape(address)}\n"
         f"💳 <b>Оплата:</b> {html.escape(payment_str)}\n"
@@ -862,7 +862,30 @@ async def handle_update_order_status(request):
 async def handle_get_products(request):
     try:
         products = db.get_products()
-        return web.json_response(products, headers={"Access-Control-Allow-Origin": "*"})
+        formatted = []
+        for p in products:
+            is_avail = bool(p.get("is_available", 1))
+            formatted.append({
+                "id": p["id"],
+                "name": p.get("name"),
+                "price": p.get("price"),
+                "oldPrice": p.get("old_price"),
+                "old_price": p.get("old_price"),
+                "isAvailable": is_avail,
+                "is_available": 1 if is_avail else 0,
+                "category": p.get("category"),
+                "badge": p.get("badge"),
+                "description": p.get("description"),
+                "weight": p.get("weight"),
+                "image": p.get("image")
+            })
+        return web.json_response(formatted, headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        })
     except Exception as e:
         logging.error(f"Error fetching products: {e}")
         return web.json_response([], headers={"Access-Control-Allow-Origin": "*"})
