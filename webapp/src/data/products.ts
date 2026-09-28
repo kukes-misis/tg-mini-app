@@ -28,10 +28,10 @@ export const PRODUCTS: Product[] = [
       'Маринованные огурчики корнишоны',
       'Соус BBQ собственного копчения'
     ],
-    calories: 780,
-    proteins: 38,
-    fats: 42,
-    carbs: 62,
+    calories: 940,
+    proteins: 55,
+    fats: 52,
+    carbs: 64,
     allergens: ['Глютен', 'Лактоза', 'Кунжут'],
     spicy: false
   },
@@ -52,10 +52,10 @@ export const PRODUCTS: Product[] = [
       'Свежая дикая руккола',
       'Томаты черри конфи'
     ],
-    calories: 840,
-    proteins: 44,
-    fats: 48,
-    carbs: 58,
+    calories: 1020,
+    proteins: 57,
+    fats: 66,
+    carbs: 50,
     allergens: ['Глютен', 'Лактоза', 'Яйца'],
     spicy: false
   },
@@ -74,9 +74,9 @@ export const PRODUCTS: Product[] = [
       'Соус Ранч со свежей зеленью и чесноком',
       'Маринованные корнишоны'
     ],
-    calories: 620,
-    proteins: 32,
-    fats: 28,
+    calories: 730,
+    proteins: 36,
+    fats: 38,
     carbs: 60,
     allergens: ['Глютен', 'Лактоза', 'Яйца'],
     spicy: false
@@ -98,10 +98,10 @@ export const PRODUCTS: Product[] = [
       'Томатный соус из томатов San Marzano D.O.P.',
       'Оливковое масло Extra Virgin и зеленый базилик'
     ],
-    calories: 1250,
-    proteins: 54,
-    fats: 58,
-    carbs: 128,
+    calories: 1480,
+    proteins: 64,
+    fats: 71,
+    carbs: 145,
     allergens: ['Глютен', 'Лактоза'],
     spicy: true
   },
@@ -121,10 +121,10 @@ export const PRODUCTS: Product[] = [
       'Сыр Таледжо',
       'Сыр Пармезан (выдержка 24 мес)'
     ],
-    calories: 1320,
-    proteins: 58,
-    fats: 66,
-    carbs: 124,
+    calories: 1470,
+    proteins: 66,
+    fats: 73,
+    carbs: 136,
     allergens: ['Глютен', 'Лактоза'],
     spicy: false
   },
@@ -143,10 +143,10 @@ export const PRODUCTS: Product[] = [
       'Свежевыжатый сок лайма',
       'Очищенная газированная артезианская вода'
     ],
-    calories: 95,
-    proteins: 1,
-    fats: 0,
-    carbs: 22,
+    calories: 125,
+    proteins: 2,
+    fats: 1,
+    carbs: 28,
     allergens: [],
     spicy: false
   },
@@ -163,10 +163,10 @@ export const PRODUCTS: Product[] = [
       'Органическое кокосовое молоко без консервантов',
       'Капелька органического сиропа агавы'
     ],
-    calories: 140,
+    calories: 170,
     proteins: 3,
-    fats: 7,
-    carbs: 16,
+    fats: 8,
+    carbs: 21,
     allergens: [],
     spicy: false
   },
@@ -186,10 +186,10 @@ export const PRODUCTS: Product[] = [
       'Мадагаскарская натуральная ваниль',
       'Ягодный соус из черники и ежевики'
     ],
-    calories: 480,
-    proteins: 9,
-    fats: 34,
-    carbs: 35,
+    calories: 580,
+    proteins: 10,
+    fats: 46,
+    carbs: 32,
     allergens: ['Лактоза', 'Яйца'],
     spicy: false
   }

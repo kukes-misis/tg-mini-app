@@ -1301,7 +1301,7 @@ export function App() {
                 <div className={`p-3 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
                   <div className={`text-[10px] font-medium uppercase tracking-wider mb-2 flex justify-between ${theme.textMuted}`}>
                     <span>Энергетическая ценность</span>
-                    <span>на 100 г</span>
+                    <span>на всю порцию {currentProduct.weight ? `(${currentProduct.weight})` : ''}</span>
                   </div>
 
                   <div className="grid grid-cols-4 gap-2 text-center text-xs">
