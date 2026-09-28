@@ -52,6 +52,10 @@ export interface OrderData {
   paymentStatus?: PaymentStatus;
   estimatedTime?: string;
   statusNote?: string;
+  statusUpdatedAt?: string;
+  completedAt?: string;
+  etaTimestamp?: number;
+  etaMinutes?: number;
   createdAt?: string;
   deletedForUser?: boolean;
 }

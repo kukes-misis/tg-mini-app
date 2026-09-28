@@ -40,12 +40,16 @@ def init_db():
         comment TEXT,
         estimated_time TEXT,
         status_note TEXT,
+        status_updated_at TEXT,
+        completed_at TEXT,
+        eta_timestamp INTEGER,
+        eta_minutes INTEGER,
         created_at TEXT
     )
     """)
 
     # Ensure optional columns exist if table was already created
-    for col in ["email", "estimated_time", "status_note", "user_id"]:
+    for col in ["email", "estimated_time", "status_note", "user_id", "status_updated_at", "completed_at", "eta_timestamp", "eta_minutes"]:
         try:
             cursor.execute(f"ALTER TABLE orders ADD COLUMN {col} TEXT")
         except sqlite3.OperationalError:
@@ -192,6 +196,10 @@ def get_orders(limit=100, status=None, user_id=None):
         o['paymentStatus'] = o.get('payment_status')
         o['estimatedTime'] = o.get('estimated_time')
         o['statusNote'] = o.get('status_note')
+        o['statusUpdatedAt'] = o.get('status_updated_at')
+        o['completedAt'] = o.get('completed_at')
+        o['etaTimestamp'] = o.get('eta_timestamp')
+        o['etaMinutes'] = o.get('eta_minutes')
         o['createdAt'] = o.get('created_at')
         orders.append(o)
     conn.close()
@@ -218,24 +226,55 @@ def get_order_by_number(order_number):
     order['paymentStatus'] = order.get('payment_status')
     order['estimatedTime'] = order.get('estimated_time')
     order['statusNote'] = order.get('status_note')
+    order['statusUpdatedAt'] = order.get('status_updated_at')
+    order['completedAt'] = order.get('completed_at')
+    order['etaTimestamp'] = order.get('eta_timestamp')
+    order['etaMinutes'] = order.get('eta_minutes')
     order['createdAt'] = order.get('created_at')
     conn.close()
     return order
 
-def update_order_status(order_number, new_status, estimated_time=None, status_note=None):
+def update_order_status(order_number, new_status, estimated_time=None, status_note=None, eta_minutes=None):
     conn = _connect()
     cursor = conn.cursor()
-    if estimated_time is not None and status_note is not None:
-        cursor.execute("UPDATE orders SET status = ?, estimated_time = ?, status_note = ? WHERE order_number = ?", 
-                       (new_status, estimated_time, status_note, order_number))
-    elif estimated_time is not None:
-        cursor.execute("UPDATE orders SET status = ?, estimated_time = ? WHERE order_number = ?", 
-                       (new_status, estimated_time, order_number))
-    elif status_note is not None:
-        cursor.execute("UPDATE orders SET status = ?, status_note = ? WHERE order_number = ?", 
-                       (new_status, status_note, order_number))
-    else:
-        cursor.execute("UPDATE orders SET status = ? WHERE order_number = ?", (new_status, order_number))
+    now_dt = datetime.now()
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+    now_ts = int(now_dt.timestamp())
+
+    fields = ["status = ?", "status_updated_at = ?"]
+    params = [new_status, now_str]
+
+    if new_status == "completed":
+        fields.append("completed_at = ?")
+        params.append(now_str)
+
+    if estimated_time is not None:
+        fields.append("estimated_time = ?")
+        params.append(estimated_time)
+
+    if status_note is not None:
+        fields.append("status_note = ?")
+        params.append(status_note)
+
+    # Parse minutes for countdown
+    mins = None
+    if eta_minutes is not None and int(eta_minutes) > 0:
+        mins = int(eta_minutes)
+    elif estimated_time:
+        import re
+        m = re.search(r'\d+', str(estimated_time))
+        if m:
+            mins = int(m.group(0))
+
+    if mins is not None:
+        fields.append("eta_minutes = ?")
+        params.append(mins)
+        fields.append("eta_timestamp = ?")
+        params.append(now_ts + mins * 60)
+
+    params.append(str(order_number).strip())
+    query = f"UPDATE orders SET {', '.join(fields)} WHERE order_number = ?"
+    cursor.execute(query, tuple(params))
     conn.commit()
     conn.close()
 

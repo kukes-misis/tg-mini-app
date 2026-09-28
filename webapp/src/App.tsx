@@ -169,7 +169,80 @@ function getMoscowTimeInfo(): { hour: number; timeStr: string; isDaytime: boolea
   }
 }
 
+function parseOrderDateMs(s?: string): number | null {
+  if (!s) return null;
+  if (/^\d{10,}$/.test(s)) return Number(s) * (s.length === 10 ? 1000 : 1);
+  const clean = s.replace(' ', 'T');
+  const t = new Date(clean).getTime();
+  return isNaN(t) ? null : t;
+}
+
+function formatMinutesRu(mins: number): string {
+  const abs = Math.abs(mins);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 19) return `${mins} минут`;
+  if (mod10 === 1) return `${mins} минуту`;
+  if (mod10 >= 2 && mod10 <= 4) return `${mins} минуты`;
+  return `${mins} минут`;
+}
+
+function getDeliveredDurationText(order: OrderData): string {
+  const createdMs = parseOrderDateMs(order.createdAt || (order as any).created_at);
+  const completedMs = parseOrderDateMs(order.completedAt || (order as any).completed_at);
+  
+  if (createdMs && completedMs && completedMs >= createdMs) {
+    const diffMins = Math.max(1, Math.round((completedMs - createdMs) / 60000));
+    return formatMinutesRu(diffMins);
+  }
+  
+  if (createdMs) {
+    const diffMins = Math.max(1, Math.round((Date.now() - createdMs) / 60000));
+    if (diffMins < 180) {
+      return formatMinutesRu(diffMins);
+    }
+  }
+
+  const mins = order.etaMinutes || 25;
+  return formatMinutesRu(mins);
+}
+
+function getOrderCountdown(order: OrderData, currentEpochMs: number) {
+  let targetMs: number | null = null;
+  if (order.etaTimestamp) {
+    targetMs = order.etaTimestamp * 1000;
+  } else if (order.statusUpdatedAt && order.etaMinutes) {
+    const updateMs = parseOrderDateMs(order.statusUpdatedAt);
+    if (updateMs) targetMs = updateMs + order.etaMinutes * 60 * 1000;
+  } else if (order.estimatedTime) {
+    const match = order.estimatedTime.match(/\d+/);
+    if (match) {
+      const mins = parseInt(match[0], 10);
+      const baseMs = parseOrderDateMs(order.statusUpdatedAt || order.createdAt) || currentEpochMs;
+      targetMs = baseMs + mins * 60 * 1000;
+    }
+  }
+
+  if (!targetMs) return null;
+
+  const diffSec = Math.floor((targetMs - currentEpochMs) / 1000);
+  if (diffSec <= 0) {
+    return { isArriving: true, text: 'Курьер уже у вас', minutes: 0, seconds: 0, timeStr: '00:00' };
+  }
+  const m = Math.floor(diffSec / 60);
+  const s = diffSec % 60;
+  const timeStr = `${m}:${s < 10 ? '0' : ''}${s}`;
+  return { isArriving: false, seconds: diffSec, minutes: m, timeStr };
+}
+
 export function App() {
+  // Real-time 1-second clock for active countdowns
+  const [nowTick, setNowTick] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Theme state: Soft, organic palette
   const [isDarkTheme, setIsDarkTheme] = useState<boolean>(() => !getMoscowTimeInfo().isDaytime);
   const [moscowTimeStr, setMoscowTimeStr] = useState<string>(() => getMoscowTimeInfo().timeStr);
@@ -275,6 +348,10 @@ export function App() {
               createdAt: o.createdAt || o.created_at || '',
               estimatedTime: o.estimatedTime || o.estimated_time,
               statusNote: o.statusNote || o.status_note,
+              statusUpdatedAt: o.statusUpdatedAt || o.status_updated_at,
+              completedAt: o.completedAt || o.completed_at,
+              etaTimestamp: o.etaTimestamp || o.eta_timestamp,
+              etaMinutes: o.etaMinutes || o.eta_minutes,
               items: Array.isArray(o.items) ? o.items : []
             }));
           }
@@ -392,6 +469,10 @@ export function App() {
                 createdAt: o.createdAt || o.created_at || '',
                 estimatedTime: o.estimatedTime || o.estimated_time,
                 statusNote: o.statusNote || o.status_note,
+                statusUpdatedAt: o.statusUpdatedAt || o.status_updated_at,
+                completedAt: o.completedAt || o.completed_at,
+                etaTimestamp: o.etaTimestamp || o.eta_timestamp,
+                etaMinutes: o.etaMinutes || o.eta_minutes,
                 items: Array.isArray(o.items) ? o.items : []
               }));
 
@@ -1223,27 +1304,100 @@ export function App() {
                       </div>
                     </div>
 
-                    {/* ETA (TIME ESTIMATE) FROM ADMIN */}
-                    {!isCancelled && (order.estimatedTime || order.statusNote || (order as any).estimated_time || (order as any).status_note) && (
-                      <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
-                        isDarkTheme ? 'bg-[#1f2026] border-[#2c2e35]' : 'bg-[#f7f5ee] border-[#eae6db]'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <Clock className={`w-3.5 h-3.5 ${theme.accentColor} shrink-0`} />
-                          <div>
-                            {(order.estimatedTime || (order as any).estimated_time) && (
-                              <span className={`font-medium ${theme.textPrimary}`}>
-                                Примерное время: {order.estimatedTime || (order as any).estimated_time}
-                              </span>
-                            )}
-                            {(order.statusNote || (order as any).status_note) && (
-                              <div className={`text-[11px] ${theme.textMuted}`}>
-                                {order.statusNote || (order as any).status_note}
+                    {/* STATUS & TIME INFO BLOCK */}
+                    {!isCancelled && (
+                      order.status === 'completed' ? (
+                        /* Completed Order: Delivered Duration Badge */
+                        <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                          isDarkTheme ? 'bg-[#18261e] border-[#22472d]' : 'bg-[#f0f9f2] border-[#d3ebd7]'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 shrink-0 text-[#2b8a3e]" />
+                            <span className={`font-semibold ${isDarkTheme ? 'text-[#51cf66]' : 'text-[#2b8a3e]'}`}>
+                              Заказ доставлен за {getDeliveredDurationText(order)}
+                            </span>
+                          </div>
+                          {order.statusNote && (
+                            <span className={`text-[11px] ${theme.textMuted}`}>{order.statusNote}</span>
+                          )}
+                        </div>
+                      ) : order.status === 'delivering' ? (
+                        /* Delivering Order: Real-time Countdown Timer */
+                        (() => {
+                          const cd = getOrderCountdown(order, nowTick);
+                          return (
+                            <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                              isDarkTheme ? 'bg-[#241c17] border-[#3d2c20]' : 'bg-[#fff7f0] border-[#fed7aa]'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#c86428] opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#c86428]"></span>
+                                </span>
+                                <div>
+                                  <span className={`font-semibold ${isDarkTheme ? 'text-[#e58045]' : 'text-[#c86428]'}`}>
+                                    {cd?.isArriving ? '🚴 Курьер уже подъезжает!' : '🚴 Курьер в пути'}
+                                  </span>
+                                  {order.statusNote && (
+                                    <div className={`text-[11px] ${theme.textMuted}`}>{order.statusNote}</div>
+                                  )}
+                                </div>
                               </div>
-                            )}
+                              <div className="flex items-center gap-1.5 font-mono font-bold text-sm text-[#c86428] shrink-0">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>{cd ? (cd.isArriving ? 'Менее 1 мин' : cd.timeStr) : (order.estimatedTime || 'В пути')}</span>
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : order.status === 'cooking' ? (
+                        /* Cooking Order: Kitchen Status & Time */
+                        (() => {
+                          const cd = getOrderCountdown(order, nowTick);
+                          return (
+                            <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                              isDarkTheme ? 'bg-[#1f2026] border-[#2c2e35]' : 'bg-[#f7f5ee] border-[#eae6db]'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                <ChefHat className={`w-3.5 h-3.5 ${theme.accentColor} shrink-0`} />
+                                <div>
+                                  <span className={`font-medium ${theme.textPrimary}`}>
+                                    👨‍🍳 Заказ готовится на кухне
+                                  </span>
+                                  {order.statusNote && (
+                                    <div className={`text-[11px] ${theme.textMuted}`}>{order.statusNote}</div>
+                                  )}
+                                </div>
+                              </div>
+                              {(cd || order.estimatedTime) && (
+                                <div className="flex items-center gap-1.5 font-mono font-semibold text-xs text-[#c86428] shrink-0">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  <span>{cd ? (cd.isArriving ? 'Почти готово' : `~${cd.minutes > 0 ? cd.minutes : 1} мин`) : order.estimatedTime}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()
+                      ) : (order.estimatedTime || order.statusNote) ? (
+                        /* New Order: ETA if assigned */
+                        <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                          isDarkTheme ? 'bg-[#1f2026] border-[#2c2e35]' : 'bg-[#f7f5ee] border-[#eae6db]'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <Clock className={`w-3.5 h-3.5 ${theme.accentColor} shrink-0`} />
+                            <div>
+                              {order.estimatedTime && (
+                                <span className={`font-medium ${theme.textPrimary}`}>
+                                  Примерное время: {order.estimatedTime}
+                                </span>
+                              )}
+                              {order.statusNote && (
+                                <div className={`text-[11px] ${theme.textMuted}`}>{order.statusNote}</div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      ) : null
                     )}
 
                     {/* Stepper */}

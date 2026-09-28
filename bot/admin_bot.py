@@ -209,10 +209,14 @@ async def cb_admin_status_change(callback: types.CallbackQuery):
     eta_param = parts[4] if len(parts) > 4 else "0"
     
     eta_text = None
+    eta_minutes = None
     if eta_param and eta_param != "0":
-        eta_text = f"~{eta_param.replace('m', ' мин')}"
+        clean_p = eta_param.replace('m', '')
+        if clean_p.isdigit():
+            eta_minutes = int(clean_p)
+        eta_text = f"~{clean_p} мин"
 
-    db.update_order_status(order_num, new_status, estimated_time=eta_text)
+    db.update_order_status(order_num, new_status, estimated_time=eta_text, eta_minutes=eta_minutes)
     await callback.answer(f"Статус #{order_num}: {new_status} {eta_text or ''}")
 
     # Notify customer via the customer bot

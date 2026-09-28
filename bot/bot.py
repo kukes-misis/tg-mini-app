@@ -244,10 +244,11 @@ async def handle_update_order_status(request):
         new_status = data.get("status")
         estimated_time = data.get("estimatedTime")
         status_note = data.get("statusNote")
+        eta_minutes = data.get("etaMinutes")
         if not order_num or not new_status:
             return web.json_response({"ok": False, "error": "Invalid params"}, status=400, headers={"Access-Control-Allow-Origin": "*"})
 
-        db.update_order_status(order_num, new_status, estimated_time=estimated_time, status_note=status_note)
+        db.update_order_status(order_num, new_status, estimated_time=estimated_time, status_note=status_note, eta_minutes=eta_minutes)
         order = db.get_order_by_number(order_num)
         if order and order.get('user_id'):
             eta_info = f"\n⏱ <b>Примерное время:</b> {html.escape(estimated_time)}" if estimated_time else ""
