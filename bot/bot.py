@@ -94,7 +94,7 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
         is_duplicate = True
     PROCESSED_ORDERS[order_num] = now
 
-    user_id = user.id if user else (data.get("userId") or 0)
+    user_id = str(user.id) if user else str(data.get("userId") or data.get("user_id") or "")
     username = user.username if user else (data.get("username") or "")
     first_name = user.first_name if user else "Клиент"
 
@@ -202,7 +202,14 @@ async def handle_api_orders(request):
 
 async def handle_get_orders(request):
     try:
-        orders = db.get_orders(limit=100)
+        user_id = request.query.get("userId") or request.query.get("user_id")
+        is_admin_req = (request.headers.get("X-Admin-Token") == ADMIN_BOT_TOKEN) or (request.query.get("admin") == "1")
+
+        # Security: unauthenticated client request without userId receives empty list
+        if not user_id and not is_admin_req:
+            return web.json_response([], headers={"Access-Control-Allow-Origin": "*"})
+
+        orders = db.get_orders(limit=100, user_id=str(user_id).strip() if not is_admin_req else None)
         return web.json_response(orders, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
         logging.error(f"Error getting orders: {e}")

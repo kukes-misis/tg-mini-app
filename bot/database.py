@@ -24,7 +24,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_number TEXT UNIQUE,
-        user_id INTEGER,
+        user_id TEXT,
         user_name TEXT,
         username TEXT,
         phone TEXT,
@@ -36,16 +36,25 @@ def init_db():
         payment_status TEXT DEFAULT 'pending',
         status TEXT DEFAULT 'new',
         comment TEXT,
+        estimated_time TEXT,
+        status_note TEXT,
         created_at TEXT
     )
     """)
 
     # Ensure optional columns exist if table was already created
-    for col in ["email", "estimated_time", "status_note"]:
+    for col in ["email", "estimated_time", "status_note", "user_id"]:
         try:
             cursor.execute(f"ALTER TABLE orders ADD COLUMN {col} TEXT")
         except sqlite3.OperationalError:
             pass
+
+    # Indices for speed and isolation
+    try:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)")
+    except Exception:
+        pass
 
     # Products table
     cursor.execute("""
@@ -130,12 +139,13 @@ def create_order(order_number, user_id, user_name, username, phone, email, addre
     conn = _connect()
     cursor = conn.cursor()
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    clean_user_id = str(user_id).strip() if user_id is not None else ""
     cursor.execute("""
     INSERT INTO orders (order_number, user_id, user_name, username, phone, email, address, items_json, total_price, payment_method, comment, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        order_number, 
-        user_id, 
+        str(order_number).strip(), 
+        clean_user_id, 
         user_name, 
         username, 
         phone,
@@ -150,14 +160,21 @@ def create_order(order_number, user_id, user_name, username, phone, email, addre
     conn.commit()
     conn.close()
 
-def get_orders(limit=100, status=None):
+def get_orders(limit=100, status=None, user_id=None):
     conn = _connect()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    query = "SELECT * FROM orders WHERE 1=1"
+    params = []
+    if user_id is not None and str(user_id).strip() != "":
+        query += " AND CAST(user_id AS TEXT) = ?"
+        params.append(str(user_id).strip())
     if status:
-        cursor.execute("SELECT * FROM orders WHERE status = ? ORDER BY id DESC LIMIT ?", (status, limit))
-    else:
-        cursor.execute("SELECT * FROM orders ORDER BY id DESC LIMIT ?", (limit,))
+        query += " AND status = ?"
+        params.append(status)
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    cursor.execute(query, tuple(params))
     rows = cursor.fetchall()
     orders = []
     for row in rows:
@@ -237,14 +254,49 @@ def delete_order(order_number):
     return deleted
 
 def clear_all_orders():
-    """Delete ALL orders from the database."""
+    """Delete ALL orders from the database and reset sequence."""
     conn = _connect()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM orders")
     count = cursor.rowcount
+    try:
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name='orders'")
+    except Exception:
+        pass
     conn.commit()
     conn.close()
     return count
+
+def recreate_orders_table():
+    """Drop and recreate the orders table completely."""
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS orders")
+    cursor.execute("""
+    CREATE TABLE orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_number TEXT UNIQUE,
+        user_id TEXT,
+        user_name TEXT,
+        username TEXT,
+        phone TEXT,
+        email TEXT,
+        address TEXT,
+        items_json TEXT,
+        total_price INTEGER,
+        payment_method TEXT,
+        payment_status TEXT DEFAULT 'pending',
+        status TEXT DEFAULT 'new',
+        comment TEXT,
+        estimated_time TEXT,
+        status_note TEXT,
+        created_at TEXT
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)")
+    conn.commit()
+    conn.close()
 
 def get_products():
     conn = _connect()
