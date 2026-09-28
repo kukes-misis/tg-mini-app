@@ -94,9 +94,28 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
         is_duplicate = True
     PROCESSED_ORDERS[order_num] = now
 
-    user_id = str(user.id) if user else str(data.get("userId") or data.get("user_id") or "")
-    username = user.username if user else (data.get("username") or "")
+    user_id = str(user.id) if user else str(data.get("userId") or data.get("user_id") or "").strip()
+    username = (user.username if user else str(data.get("username") or "")).lstrip("@").strip()
     first_name = user.first_name if user else "Клиент"
+
+    # If username is missing but user_id is a Telegram numeric ID, try resolving it via Telegram API
+    if user_id and user_id.isdigit() and not username:
+        try:
+            tg_chat = await bot.get_chat(int(user_id))
+            if tg_chat:
+                if tg_chat.username:
+                    username = tg_chat.username.lstrip("@").strip()
+                    logging.info(f"Resolved Telegram @{username} for user_id {user_id}")
+                if not data.get("customerName") or data.get("customerName") == "Клиент":
+                    resolved_name = f"{tg_chat.first_name or ''} {tg_chat.last_name or ''}".strip()
+                    if resolved_name:
+                        data["customerName"] = resolved_name
+        except Exception as e:
+            logging.debug(f"Could not resolve Telegram chat for user {user_id}: {e}")
+
+    # Synchronize resolved fields back into order payload
+    data["userId"] = user_id
+    data["username"] = username
 
     items = data.get("items", [])
     total_price = data.get("totalPrice", 0)
@@ -123,7 +142,7 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
             payment_method=payment_method,
             comment=comment
         )
-        logging.info(f"Order #{order_num} successfully saved to DB (source: {source})")
+        logging.info(f"Order #{order_num} successfully saved to DB (source: {source}, user: @{username or 'none'})")
     except Exception as e:
         logging.error(f"Order #{order_num} DB ERROR: {e}", exc_info=True)
         raise e

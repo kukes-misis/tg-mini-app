@@ -146,11 +146,19 @@ async def show_active_orders(message: types.Message):
             items_str += f"  • {html.escape(it.get('name', ''))} × {it.get('quantity', 1)} = {it.get('price', 0) * it.get('quantity', 1)} ₽\n"
 
         phone = html.escape(str(o.get('phone') or ''))
-        uname = f"@{html.escape(o['username'])}" if o.get('username') else "нет username"
+        uname = str(o.get('username') or '').lstrip('@').strip()
+        uid = str(o.get('user_id') or '').strip()
+        if uname:
+            tg_str = f"<a href='https://t.me/{uname}'>@{html.escape(uname)}</a>"
+        elif uid and uid.isdigit():
+            tg_str = f"<a href='tg://user?id={uid}'>Профиль TG ({uid})</a>"
+        else:
+            tg_str = "<i>нет</i>"
 
         msg = (
             f"📋 <b>Заказ #{order_num}</b> ({st})\n"
-            f"👤 <b>Клиент:</b> {html.escape(str(o.get('user_name') or ''))} ({uname})\n"
+            f"👤 <b>Клиент:</b> {html.escape(str(o.get('user_name') or ''))}\n"
+            f"💬 <b>Telegram:</b> {tg_str}\n"
             f"📞 <b>Телефон:</b> <code>{phone}</code>\n"
             f"📍 <b>Адрес:</b> {html.escape(str(o.get('address') or ''))}\n"
             f"{eta_line}{note_line}\n\n"
@@ -158,22 +166,24 @@ async def show_active_orders(message: types.Message):
             f"💵 <b>Сумма:</b> <b>{o['total_price']} ₽</b> (Оплата при получении)"
         )
 
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="👨‍🍳 Кухня (~15м)", callback_data=f"adm_st_{order_num}_cooking_15m"),
-                    InlineKeyboardButton(text="👨‍🍳 Кухня (~30м)", callback_data=f"adm_st_{order_num}_cooking_30m")
-                ],
-                [
-                    InlineKeyboardButton(text="🚴 Доставка (~20м)", callback_data=f"adm_st_{order_num}_delivering_20m"),
-                    InlineKeyboardButton(text="🚴 Доставка (~35м)", callback_data=f"adm_st_{order_num}_delivering_35m")
-                ],
-                [
-                    InlineKeyboardButton(text="✅ Доставлен", callback_data=f"adm_st_{order_num}_completed_0"),
-                    InlineKeyboardButton(text="❌ Отменить", callback_data=f"adm_st_{order_num}_cancelled_0")
-                ]
+        buttons = []
+        if uname:
+            buttons.append([InlineKeyboardButton(text=f"💬 Написать @{uname}", url=f"https://t.me/{uname}")])
+        buttons.extend([
+            [
+                InlineKeyboardButton(text="👨‍🍳 Кухня (~15м)", callback_data=f"adm_st_{order_num}_cooking_15m"),
+                InlineKeyboardButton(text="👨‍🍳 Кухня (~30м)", callback_data=f"adm_st_{order_num}_cooking_30m")
+            ],
+            [
+                InlineKeyboardButton(text="🚴 Доставка (~20м)", callback_data=f"adm_st_{order_num}_delivering_20m"),
+                InlineKeyboardButton(text="🚴 Доставка (~35м)", callback_data=f"adm_st_{order_num}_delivering_35m")
+            ],
+            [
+                InlineKeyboardButton(text="✅ Доставлен", callback_data=f"adm_st_{order_num}_completed_0"),
+                InlineKeyboardButton(text="❌ Отменить", callback_data=f"adm_st_{order_num}_cancelled_0")
             ]
-        )
+        ])
+        kb = InlineKeyboardMarkup(inline_keyboard=buttons)
         await message.answer(msg, reply_markup=kb, parse_mode="HTML")
 
 @admin_dp.message(F.text == "📋 История заказов")
@@ -416,8 +426,15 @@ async def broadcast_order_to_admins(order_data: dict):
     phone = order_data.get("phone", "")
     address = order_data.get("address", "")
     comment = order_data.get("comment", "")
-    username = order_data.get("username", "")
-    uname_str = f"@{html.escape(username)}" if username else "нет username"
+    username = str(order_data.get("username") or "").lstrip("@").strip()
+    user_id = str(order_data.get("userId") or order_data.get("user_id") or "").strip()
+
+    if username:
+        tg_info = f"<a href='https://t.me/{username}'>@{html.escape(username)}</a>"
+    elif user_id and user_id.isdigit():
+        tg_info = f"<a href='tg://user?id={user_id}'>Профиль TG (ID: {user_id})</a>"
+    else:
+        tg_info = "<i>не определен (браузер)</i>"
 
     items_html = ""
     for it in order_data.get("items", []):
@@ -429,7 +446,8 @@ async def broadcast_order_to_admins(order_data: dict):
     alert_html = (
         f"🚨 <b>НОВЫЙ ЗАКАЗ #{html.escape(order_num)}!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"👤 <b>Клиент:</b> {html.escape(customer_name)} ({uname_str})\n"
+        f"👤 <b>Клиент:</b> {html.escape(customer_name)}\n"
+        f"💬 <b>Telegram:</b> {tg_info}\n"
         f"📞 <b>Телефон:</b> <code>{html.escape(phone)}</code>\n"
         f"📍 <b>Адрес:</b> {html.escape(address)}\n"
         f"💵 <b>Сумма:</b> <b>{total_price} ₽</b> (Оплата при получении)\n"
@@ -438,22 +456,24 @@ async def broadcast_order_to_admins(order_data: dict):
         alert_html += f"💬 <b>Комментарий:</b> {html.escape(comment)}\n"
     alert_html += f"\n📦 <b>Состав:</b>\n{items_html}"
 
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="👨‍🍳 Кухня (~15м)", callback_data=f"adm_st_{order_num}_cooking_15m"),
-                InlineKeyboardButton(text="👨‍🍳 Кухня (~30м)", callback_data=f"adm_st_{order_num}_cooking_30m")
-            ],
-            [
-                InlineKeyboardButton(text="🚴 Доставка (~20м)", callback_data=f"adm_st_{order_num}_delivering_20m"),
-                InlineKeyboardButton(text="🚴 Доставка (~35м)", callback_data=f"adm_st_{order_num}_delivering_35m")
-            ],
-            [
-                InlineKeyboardButton(text="✅ Выполнен", callback_data=f"adm_st_{order_num}_completed_0"),
-                InlineKeyboardButton(text="❌ Отменить", callback_data=f"adm_st_{order_num}_cancelled_0")
-            ]
+    buttons = []
+    if username:
+        buttons.append([InlineKeyboardButton(text=f"💬 Написать @{username}", url=f"https://t.me/{username}")])
+    buttons.extend([
+        [
+            InlineKeyboardButton(text="👨‍🍳 Кухня (~15м)", callback_data=f"adm_st_{order_num}_cooking_15m"),
+            InlineKeyboardButton(text="👨‍🍳 Кухня (~30м)", callback_data=f"adm_st_{order_num}_cooking_30m")
+        ],
+        [
+            InlineKeyboardButton(text="🚴 Доставка (~20м)", callback_data=f"adm_st_{order_num}_delivering_20m"),
+            InlineKeyboardButton(text="🚴 Доставка (~35м)", callback_data=f"adm_st_{order_num}_delivering_35m")
+        ],
+        [
+            InlineKeyboardButton(text="✅ Выполнен", callback_data=f"adm_st_{order_num}_completed_0"),
+            InlineKeyboardButton(text="❌ Отменить", callback_data=f"adm_st_{order_num}_cancelled_0")
         ]
-    )
+    ])
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     for chat_id in admin_sessions:
         try:

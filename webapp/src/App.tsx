@@ -235,6 +235,75 @@ function getOrderCountdown(order: OrderData, currentEpochMs: number) {
   return { isArriving: false, seconds: diffSec, minutes: m, timeStr };
 }
 
+interface TelegramUser {
+  id?: number | string;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  language_code?: string;
+}
+
+function getTelegramUser(): TelegramUser | null {
+  try {
+    // 1. Direct WebApp initDataUnsafe
+    const unsafe = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+    if (unsafe && (unsafe.id || unsafe.username)) {
+      try {
+        localStorage.setItem('tg_store_user_cache', JSON.stringify(unsafe));
+      } catch {}
+      return unsafe;
+    }
+
+    // 2. Parse from WebApp initData (querystring format)
+    const initData = (window as any).Telegram?.WebApp?.initData;
+    if (initData) {
+      const q = new URLSearchParams(initData);
+      const userStr = q.get('user');
+      if (userStr) {
+        const parsed = JSON.parse(decodeURIComponent(userStr));
+        if (parsed && (parsed.id || parsed.username)) {
+          try {
+            localStorage.setItem('tg_store_user_cache', JSON.stringify(parsed));
+          } catch {}
+          return parsed;
+        }
+      }
+    }
+
+    // 3. Parse from URL hash (#tgWebAppData=...)
+    const hash = window.location.hash || '';
+    if (hash.includes('tgWebAppData=')) {
+      const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
+      const rawInitData = hashParams.get('tgWebAppData');
+      if (rawInitData) {
+        const innerParams = new URLSearchParams(rawInitData);
+        const userStr = innerParams.get('user');
+        if (userStr) {
+          const parsed = JSON.parse(decodeURIComponent(userStr));
+          if (parsed && (parsed.id || parsed.username)) {
+            try {
+              localStorage.setItem('tg_store_user_cache', JSON.stringify(parsed));
+            } catch {}
+            return parsed;
+          }
+        }
+      }
+    }
+
+    // 4. Cached user from previous session
+    const cached = localStorage.getItem('tg_store_user_cache');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && (parsed.id || parsed.username)) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('getTelegramUser parsing error:', err);
+  }
+  return null;
+}
+
 export function App() {
   // Real-time 1-second clock for active countdowns
   const [nowTick, setNowTick] = useState<number>(() => Date.now());
@@ -288,10 +357,14 @@ export function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   // User Identification (Telegram ID or Persistent Client UUID)
-  const currentUserId = useMemo(() => {
+  const [currentUserId, setCurrentUserId] = useState<string>(() => {
     try {
-      const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      if (tgId) return String(tgId);
+      const tgUser = getTelegramUser();
+      if (tgUser?.id) {
+        const uid = String(tgUser.id);
+        localStorage.setItem('tg_store_user_id', uid);
+        return uid;
+      }
       let localId = localStorage.getItem('tg_store_user_id');
       if (!localId) {
         localId = 'u_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
@@ -301,14 +374,14 @@ export function App() {
     } catch {
       return 'u_guest';
     }
-  }, []);
+  });
 
   // Orders, Archive & Delete state (strictly scoped to currentUserId)
   const [orderFilterTab, setOrderFilterTab] = useState<'active' | 'archived'>('active');
   const [archivedOrderNums, setArchivedOrderNums] = useState<string[]>(() => {
     try {
-      const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      const uid = tgId ? String(tgId) : (localStorage.getItem('tg_store_user_id') || '');
+      const tgUser = getTelegramUser();
+      const uid = tgUser?.id ? String(tgUser.id) : (localStorage.getItem('tg_store_user_id') || '');
       const saved = localStorage.getItem(`tg_store_archived_orders_${uid}`);
       return saved ? JSON.parse(saved) : [];
     } catch {
@@ -317,8 +390,8 @@ export function App() {
   });
   const [deletedOrderNums, setDeletedOrderNums] = useState<string[]>(() => {
     try {
-      const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      const uid = tgId ? String(tgId) : (localStorage.getItem('tg_store_user_id') || '');
+      const tgUser = getTelegramUser();
+      const uid = tgUser?.id ? String(tgUser.id) : (localStorage.getItem('tg_store_user_id') || '');
       const saved = localStorage.getItem(`tg_store_deleted_orders_${uid}`);
       return saved ? JSON.parse(saved) : [];
     } catch {
@@ -333,8 +406,8 @@ export function App() {
       localStorage.removeItem('tg_store_archived_orders');
       localStorage.removeItem('tg_store_deleted_orders');
 
-      const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      const uid = tgId ? String(tgId) : (localStorage.getItem('tg_store_user_id') || '');
+      const tgUser = getTelegramUser();
+      const uid = tgUser?.id ? String(tgUser.id) : (localStorage.getItem('tg_store_user_id') || '');
       if (uid) {
         const saved = localStorage.getItem(`tg_store_orders_${uid}`);
         if (saved) {
@@ -351,14 +424,15 @@ export function App() {
               statusUpdatedAt: o.statusUpdatedAt || o.status_updated_at,
               completedAt: o.completedAt || o.completed_at,
               etaTimestamp: o.etaTimestamp || o.eta_timestamp,
-              etaMinutes: o.etaMinutes || o.eta_minutes,
-              items: Array.isArray(o.items) ? o.items : []
+              etaMinutes: o.etaMinutes || o.eta_minutes
             }));
           }
         }
       }
-    } catch { /* ignore */ }
-    return [];
+      return [];
+    } catch {
+      return [];
+    }
   });
 
   const [orderToDelete, setOrderToDelete] = useState<OrderData | null>(null);
@@ -432,9 +506,22 @@ export function App() {
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.ready();
       window.Telegram.WebApp.expand();
-      const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
-      if (tgUser?.first_name) {
-        setCustomerName(tgUser.first_name + (tgUser.last_name ? ` ${tgUser.last_name}` : ''));
+    }
+    const tgUser = getTelegramUser();
+    if (tgUser) {
+      if (tgUser.id) {
+        const uidStr = String(tgUser.id);
+        setCurrentUserId(prev => {
+          if (prev !== uidStr) {
+            localStorage.setItem('tg_store_user_id', uidStr);
+            return uidStr;
+          }
+          return prev;
+        });
+      }
+      if (tgUser.first_name) {
+        const fullName = tgUser.first_name + (tgUser.last_name ? ` ${tgUser.last_name}` : '');
+        setCustomerName(prev => (!prev || prev.trim() === '' ? fullName : prev));
       }
     }
   }, []);
@@ -808,6 +895,12 @@ export function App() {
       localStorage.setItem('tg_store_addresses', JSON.stringify(updated));
     }
 
+    const tgUser = getTelegramUser();
+    const effectiveUserId = tgUser?.id ? String(tgUser.id) : currentUserId;
+    const effectiveUsername = (tgUser?.username || '').replace(/^@/, '').trim();
+    const resolvedCustomerName = customerName.trim() || 
+      (tgUser?.first_name ? `${tgUser.first_name}${tgUser.last_name ? ' ' + tgUser.last_name : ''}` : 'Клиент');
+
     const orderNum = String(Math.floor(100000 + Math.random() * 900000));
     const newOrder: OrderData = {
       id: `ord-${orderNum}`,
@@ -825,7 +918,7 @@ export function App() {
       cutlery: cutleryCount,
       tips: tipsAmount,
       totalPrice,
-      customerName: customerName.trim(),
+      customerName: resolvedCustomerName,
       phone: phone.trim(),
       email: email.trim(),
       address: address.trim(),
@@ -843,15 +936,16 @@ export function App() {
         keepalive: true,
         body: JSON.stringify({
           ...newOrder,
-          userId: currentUserId,
-          username: window.Telegram?.WebApp?.initDataUnsafe?.user?.username || ''
+          customerName: resolvedCustomerName,
+          userId: effectiveUserId,
+          username: effectiveUsername
         })
       }).catch(err => console.warn('API sync warning:', err));
     } catch {}
 
     setOrders(prev => {
       const next = [newOrder, ...prev];
-      localStorage.setItem(`tg_store_orders_${currentUserId}`, JSON.stringify(next));
+      localStorage.setItem(`tg_store_orders_${effectiveUserId}`, JSON.stringify(next));
       return next;
     });
     setIsCartOpen(false);
