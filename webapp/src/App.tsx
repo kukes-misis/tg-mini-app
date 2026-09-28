@@ -1250,18 +1250,22 @@ export function App() {
                     {!isCancelled && (
                       <div className={`p-2.5 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
                         <div className="relative flex items-center justify-between px-2 pt-1 pb-1">
-                          <div className={`absolute left-5 right-5 top-3.5 h-0.5 -translate-y-1/2 z-0 ${
-                            isDarkTheme ? 'bg-[#2a2c33]' : 'bg-[#e2dfd7]'
-                          }`} />
-                          
-                          <div 
-                            className="absolute left-5 top-3.5 h-0.5 -translate-y-1/2 bg-[#c86428] transition-all duration-300 z-0" 
-                            style={{ width: `${((stageIndex - 1) / 3) * 100}%` }}
-                          />
+                          {/* Stepper Track */}
+                          <div className="absolute left-[22px] right-[22px] top-[18px] -translate-y-1/2 z-0">
+                            {/* Base Track */}
+                            <div className={`w-full h-0.5 ${isDarkTheme ? 'bg-[#2a2c33]' : 'bg-[#e2dfd7]'}`} />
+                            {/* Active Fill Track */}
+                            <div 
+                              className={`absolute left-0 top-0 h-0.5 transition-all duration-300 ${
+                                stageIndex >= 4 ? 'bg-[#2b8a3e]' : 'bg-[#c86428]'
+                              }`} 
+                              style={{ width: `${Math.max(0, Math.min(100, ((stageIndex - 1) / 3) * 100))}%` }}
+                            />
+                          </div>
 
                           <div className="relative z-10 flex flex-col items-center gap-1">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${
-                              stageIndex >= 1 ? 'bg-[#c86428] text-white' : (isDarkTheme ? 'bg-[#22242a] text-[#6c6e75]' : 'bg-[#e6e3da] text-[#797670]')
+                              stageIndex >= 1 ? (stageIndex >= 4 ? 'bg-[#2b8a3e] text-white' : 'bg-[#c86428] text-white') : (isDarkTheme ? 'bg-[#22242a] text-[#6c6e75]' : 'bg-[#e6e3da] text-[#797670]')
                             }`}>
                               <Check className="w-3.5 h-3.5" />
                             </div>
@@ -1270,7 +1274,7 @@ export function App() {
 
                           <div className="relative z-10 flex flex-col items-center gap-1">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${
-                              stageIndex >= 2 ? 'bg-[#c86428] text-white' : (isDarkTheme ? 'bg-[#22242a] text-[#6c6e75]' : 'bg-[#e6e3da] text-[#797670]')
+                              stageIndex >= 2 ? (stageIndex >= 4 ? 'bg-[#2b8a3e] text-white' : 'bg-[#c86428] text-white') : (isDarkTheme ? 'bg-[#22242a] text-[#6c6e75]' : 'bg-[#e6e3da] text-[#797670]')
                             }`}>
                               <ChefHat className="w-3.5 h-3.5" />
                             </div>
@@ -1279,7 +1283,7 @@ export function App() {
 
                           <div className="relative z-10 flex flex-col items-center gap-1">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${
-                              stageIndex >= 3 ? 'bg-[#c86428] text-white' : (isDarkTheme ? 'bg-[#22242a] text-[#6c6e75]' : 'bg-[#e6e3da] text-[#797670]')
+                              stageIndex >= 3 ? (stageIndex >= 4 ? 'bg-[#2b8a3e] text-white' : 'bg-[#c86428] text-white') : (isDarkTheme ? 'bg-[#22242a] text-[#6c6e75]' : 'bg-[#e6e3da] text-[#797670]')
                             }`}>
                               <Bike className="w-3.5 h-3.5" />
                             </div>
