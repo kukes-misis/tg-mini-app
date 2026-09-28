@@ -412,8 +412,13 @@ export function App() {
               try { window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success'); } catch {}
             }
 
-            setOrders(normalizedOrders);
-            localStorage.setItem(`tg_store_orders_${currentUserId}`, JSON.stringify(normalizedOrders));
+            setOrders(prev => {
+              const serverNums = new Set(normalizedOrders.map(o => o.orderNumber));
+              const pendingLocal = prev.filter(p => p.orderNumber && !serverNums.has(p.orderNumber) && !deletedSet.has(p.orderNumber));
+              const merged = [...normalizedOrders, ...pendingLocal];
+              localStorage.setItem(`tg_store_orders_${currentUserId}`, JSON.stringify(merged));
+              return merged;
+            });
           }
         }
       } catch {
@@ -754,6 +759,7 @@ export function App() {
       fetch(`${API_BASE_URL}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
         body: JSON.stringify({
           ...newOrder,
           userId: currentUserId,
@@ -761,12 +767,6 @@ export function App() {
         })
       }).catch(err => console.warn('API sync warning:', err));
     } catch {}
-
-    if (window.Telegram?.WebApp?.sendData) {
-      try {
-        window.Telegram.WebApp.sendData(JSON.stringify(newOrder));
-      } catch {}
-    }
 
     setOrders(prev => {
       const next = [newOrder, ...prev];

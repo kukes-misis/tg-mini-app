@@ -125,7 +125,8 @@ async def process_order_data(data: dict, user=None, message: types.Message | Non
         )
         logging.info(f"Order #{order_num} successfully saved to DB (source: {source})")
     except Exception as e:
-        logging.warning(f"Order #{order_num} DB notice: {e}")
+        logging.error(f"Order #{order_num} DB ERROR: {e}", exc_info=True)
+        raise e
 
     # Build customer receipt
     items_text = ""
@@ -340,7 +341,23 @@ async def handle_toggle_product(request):
         return web.json_response({"ok": False, "error": "productId required"}, status=400, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
         logging.error(f"Error toggling product: {e}")
-        return web.json_response({"ok": False, "error": str(e)}, status=500, headers={"Access-Control-Allow-Origin": "*"})
+async def handle_debug_status(request):
+    try:
+        conn = db._connect()
+        cursor = conn.cursor()
+        order_count = cursor.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
+        recent_orders = cursor.execute("SELECT id, order_number, user_id, user_name, total_price, created_at FROM orders ORDER BY id DESC LIMIT 10").fetchall()
+        schema = cursor.execute("PRAGMA table_info(orders)").fetchall()
+        conn.close()
+        return web.json_response({
+            "db_path": db.DB_PATH,
+            "cwd": os.getcwd(),
+            "order_count": order_count,
+            "recent_orders": [list(r) for r in recent_orders],
+            "schema": [list(s) for s in schema]
+        }, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500, headers={"Access-Control-Allow-Origin": "*"})
 
 async def start_web_server():
     app = web.Application()
@@ -358,6 +375,9 @@ async def start_web_server():
     app.router.add_get("/api/products", handle_get_products)
     app.router.add_post("/api/products/price", handle_update_price)
     app.router.add_post("/api/products/toggle", handle_toggle_product)
+
+    # Diagnostic API
+    app.router.add_get("/api/debug-status", handle_debug_status)
 
     # CORS Preflight
     app.router.add_route("OPTIONS", "/{tail:.*}", handle_cors_options)
