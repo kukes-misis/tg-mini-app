@@ -15,7 +15,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton
 )
-from config import BOT_TOKEN, WEBAPP_URL
+from config import BOT_TOKEN, WEBAPP_URL, ADMIN_BOT_TOKEN
 import database as db
 from admin_bot import admin_bot, admin_dp, broadcast_order_to_admins
 
