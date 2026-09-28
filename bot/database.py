@@ -103,6 +103,29 @@ def get_setting(key: str, default=None):
     conn.close()
     return row[0] if row else default
 
+def get_all_admin_sessions() -> list[int]:
+    raw = get_setting("admin_sessions", "[]")
+    try:
+        data = json.loads(raw)
+        return [int(x) for x in data if str(x) != "5847598677"]
+    except Exception:
+        return []
+
+def add_admin_session(chat_id: int):
+    sessions = get_all_admin_sessions()
+    if chat_id not in sessions:
+        sessions.append(chat_id)
+        set_setting("admin_sessions", json.dumps(sessions))
+
+def remove_admin_session(chat_id: int):
+    sessions = get_all_admin_sessions()
+    if chat_id in sessions:
+        sessions.remove(chat_id)
+        set_setting("admin_sessions", json.dumps(sessions))
+
+def is_admin_session(chat_id: int) -> bool:
+    return chat_id in get_all_admin_sessions()
+
 def create_order(order_number, user_id, user_name, username, phone, email, address, items, total_price, payment_method, comment=""):
     conn = _connect()
     cursor = conn.cursor()
