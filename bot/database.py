@@ -77,13 +77,13 @@ def init_db():
     if cursor.fetchone()[0] == 0:
         initial_products = [
             ('b1', 'Блэк Ангус Бургер', 'burgers', 490, 590, 1, 'Хит', 'Мраморная говядина, сыр чеддер, хрустящий бекон, лук BBQ.', '360 г', 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80'),
-            ('b2', 'Трюфельный Чизбургер', 'burgers', 590, 0, 1, 'Шеф-выбор', 'Двойная котлета из говядины, соус с белым трюфелем, руккола.', '380 г', 'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=600&auto=format&fit=crop&q=80'),
-            ('b3', 'Криспи Чикен Бургер', 'burgers', 420, 0, 1, '', 'Нежное филе цыпленка в хрустящей панировке, айсберг, ранч.', '320 г', 'https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?w=600&auto=format&fit=crop&q=80'),
+            ('b2', 'Трюфельный Чизбургер', 'burgers', 590, None, 1, 'Шеф-выбор', 'Двойная котлета из говядины, соус с белым трюфелем, руккола.', '380 г', 'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=600&auto=format&fit=crop&q=80'),
+            ('b3', 'Криспи Чикен Бургер', 'burgers', 420, None, 1, '', 'Нежное филе цыпленка в хрустящей панировке, айсберг, ранч.', '320 г', 'https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?w=600&auto=format&fit=crop&q=80'),
             ('p1', 'Пицца Пепперони Премиум', 'pizza', 680, 750, 1, 'Топ', 'Пряная чоризо, моцарелла фьор ди латте, Сан Марцано.', '550 г (30 см)', 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600&auto=format&fit=crop&q=80'),
-            ('p2', 'Пицца Четыре Сыра', 'pizza', 740, 0, 1, '', 'Сливочная основа, моцарелла, горгонзола, таледжо, пармезан.', '520 г (30 см)', 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80'),
-            ('d1', 'Лимонад Малина-Маракуйя', 'drinks', 260, 0, 1, '', 'Крафтовый освежающий лимонад из натурального пюре.', '450 мл', 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80'),
-            ('d2', 'Матча Латте на кокосовом', 'drinks', 310, 0, 1, '', 'Японский чай матча на нежном кокосовом молоке.', '350 мл', 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=80'),
-            ('des1', 'Баскский Чизкейк', 'desserts', 390, 0, 1, 'Новинка', 'Карамелизованная корочка и нежная сливочная середина.', '180 г', 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=600&auto=format&fit=crop&q=80')
+            ('p2', 'Пицца Четыре Сыра', 'pizza', 740, None, 1, '', 'Сливочная основа, моцарелла, горгонзола, таледжо, пармезан.', '520 г (30 см)', 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80'),
+            ('d1', 'Лимонад Малина-Маракуйя', 'drinks', 260, None, 1, '', 'Крафтовый освежающий лимонад из натурального пюре.', '450 мл', 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80'),
+            ('d2', 'Матча Латте на кокосовом', 'drinks', 310, None, 1, '', 'Японский чай матча на нежном кокосовом молоке.', '350 мл', 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=80'),
+            ('des1', 'Баскский Чизкейк', 'desserts', 390, None, 1, 'Новинка', 'Карамелизованная корочка и нежная сливочная середина.', '180 г', 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=600&auto=format&fit=crop&q=80')
         ]
         cursor.executemany("""
         INSERT INTO products (id, name, category, price, old_price, is_available, badge, description, weight, image)

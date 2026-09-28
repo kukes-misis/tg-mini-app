@@ -181,7 +181,15 @@ export function App() {
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('tg_store_products');
     if (saved) {
-      try { return JSON.parse(saved); } catch { /* ignore */ }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((p: any) => ({
+            ...p,
+            oldPrice: p.oldPrice && Number(p.oldPrice) > Number(p.price) ? Number(p.oldPrice) : undefined
+          }));
+        }
+      } catch { /* ignore */ }
     }
     return INITIAL_PRODUCTS;
   });
@@ -432,13 +440,16 @@ export function App() {
           if (Array.isArray(serverProducts) && serverProducts.length > 0) {
             setProducts(prev => {
               const updated = prev.map(p => {
-                const sp = serverProducts.find((s: { id: string; price?: number; isAvailable?: boolean; is_available?: number; oldPrice?: number }) => s.id === p.id);
+                const sp = serverProducts.find((s: { id: string; price?: number; isAvailable?: boolean; is_available?: number; oldPrice?: number; old_price?: number }) => s.id === p.id);
                 if (sp) {
+                  const finalPrice = typeof sp.price === 'number' ? sp.price : p.price;
+                  const rawOld = sp.oldPrice ?? sp.old_price;
+                  const cleanOld = rawOld && Number(rawOld) > Number(finalPrice) ? Number(rawOld) : undefined;
                   return {
                     ...p,
-                    price: typeof sp.price === 'number' ? sp.price : p.price,
+                    price: finalPrice,
                     isAvailable: sp.isAvailable !== undefined ? Boolean(sp.isAvailable) : (sp.is_available !== undefined ? Boolean(sp.is_available) : p.isAvailable),
-                    oldPrice: sp.oldPrice !== undefined ? sp.oldPrice : p.oldPrice
+                    oldPrice: cleanOld
                   };
                 }
                 return p;
@@ -1035,7 +1046,7 @@ export function App() {
                           <div className={`text-sm font-semibold ${theme.textPrimary}`}>
                             {product.price} ₽
                           </div>
-                          {product.oldPrice && product.oldPrice > product.price && (
+                          {Boolean(product.oldPrice && Number(product.oldPrice) > Number(product.price)) && (
                             <div className={`text-[10px] line-through ${theme.textMuted}`}>
                               {product.oldPrice} ₽
                             </div>
@@ -1575,8 +1586,15 @@ export function App() {
               }`}>
                 <div>
                   <div className={`text-[10px] ${theme.textMuted}`}>Стоимость:</div>
-                  <div className={`text-base font-semibold ${theme.textPrimary}`}>
-                    {currentProduct.price} ₽
+                  <div className="flex items-baseline gap-2">
+                    <div className={`text-base font-semibold ${theme.textPrimary}`}>
+                      {currentProduct.price} ₽
+                    </div>
+                    {Boolean(currentProduct.oldPrice && Number(currentProduct.oldPrice) > Number(currentProduct.price)) && (
+                      <div className={`text-xs line-through ${theme.textMuted}`}>
+                        {currentProduct.oldPrice} ₽
+                      </div>
+                    )}
                   </div>
                 </div>
 

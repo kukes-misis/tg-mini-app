@@ -284,12 +284,20 @@ async def handle_get_products(request):
         formatted = []
         for p in products:
             is_avail = bool(p.get("is_available", 1))
+            raw_old = p.get("old_price")
+            cur_price = p.get("price")
+            try:
+                clean_old_price = int(raw_old) if raw_old and int(raw_old) > 0 else None
+                if clean_old_price is not None and cur_price is not None and clean_old_price <= cur_price:
+                    clean_old_price = None
+            except Exception:
+                clean_old_price = None
             formatted.append({
                 "id": p["id"],
                 "name": p.get("name"),
-                "price": p.get("price"),
-                "oldPrice": p.get("old_price"),
-                "old_price": p.get("old_price"),
+                "price": cur_price,
+                "oldPrice": clean_old_price,
+                "old_price": clean_old_price,
                 "isAvailable": is_avail,
                 "is_available": 1 if is_avail else 0,
                 "category": p.get("category"),
