@@ -211,10 +211,10 @@ async def handle_get_orders(request):
 async def handle_delete_order(request):
     try:
         data = await request.json()
-        order_num = data.get("orderNumber")
+        order_num = data.get("orderNumber") or data.get("order_number")
         if order_num:
-            deleted = db.delete_order(order_num)
-            return web.json_response({"ok": True, "deleted": deleted}, headers={"Access-Control-Allow-Origin": "*"})
+            deleted = db.delete_order(str(order_num).strip())
+            return web.json_response({"ok": True, "deleted": deleted, "orderNumber": str(order_num).strip()}, headers={"Access-Control-Allow-Origin": "*"})
         return web.json_response({"ok": False, "error": "orderNumber required"}, status=400, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
         logging.error(f"Error deleting order: {e}")

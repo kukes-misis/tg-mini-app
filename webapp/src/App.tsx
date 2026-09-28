@@ -26,7 +26,9 @@ import {
   Utensils, 
   MessageCircle, 
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Archive,
+  ArchiveRestore
 } from 'lucide-react';
 import { CATEGORIES, PRODUCTS as INITIAL_PRODUCTS } from './data/products';
 import { Product, CartItem, OrderData, OrderStatus } from './types';
@@ -204,13 +206,42 @@ export function App() {
   const [cart, setCart] = useState<{ [productId: string]: number }>({});
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Orders
+  // Orders, Archive & Delete state
+  const [orderFilterTab, setOrderFilterTab] = useState<'active' | 'archived'>('active');
+  const [archivedOrderNums, setArchivedOrderNums] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('tg_store_archived_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [deletedOrderNums, setDeletedOrderNums] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('tg_store_deleted_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [orders, setOrders] = useState<OrderData[]>(() => {
     const saved = localStorage.getItem('tg_store_orders');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.map((o: any) => ({
+            ...o,
+            orderNumber: o.orderNumber || o.order_number,
+            totalPrice: Number(o.totalPrice ?? o.total_price ?? 0),
+            customerName: o.customerName || o.user_name || '',
+            createdAt: o.createdAt || o.created_at || '',
+            estimatedTime: o.estimatedTime || o.estimated_time,
+            statusNote: o.statusNote || o.status_note,
+            items: Array.isArray(o.items) ? o.items : []
+          }));
+        }
       } catch { /* ignore */ }
     }
     return [];
@@ -305,14 +336,37 @@ export function App() {
         if (res.ok && isMounted) {
           const serverOrders = await res.json();
           if (Array.isArray(serverOrders)) {
+            const deletedSaved: string[] = (() => {
+              try { return JSON.parse(localStorage.getItem('tg_store_deleted_orders') || '[]'); } catch { return []; }
+            })();
+            const deletedSet = new Set(deletedSaved);
+
+            const normalizedOrders: OrderData[] = serverOrders
+              .filter((o: any) => {
+                const num = o.orderNumber || o.order_number;
+                return num && !deletedSet.has(num);
+              })
+              .map((o: any) => ({
+                ...o,
+                id: o.id || o.orderNumber || o.order_number,
+                orderNumber: o.orderNumber || o.order_number,
+                totalPrice: Number(o.totalPrice ?? o.total_price ?? 0),
+                customerName: o.customerName || o.user_name || '',
+                createdAt: o.createdAt || o.created_at || '',
+                estimatedTime: o.estimatedTime || o.estimated_time,
+                statusNote: o.statusNote || o.status_note,
+                items: Array.isArray(o.items) ? o.items : []
+              }));
+
             let statusChanged = false;
-            serverOrders.forEach((o: OrderData) => {
-              if (o.orderNumber && o.status) {
-                const oldSt = prevStatusesRef.current[o.orderNumber];
+            normalizedOrders.forEach((o: OrderData) => {
+              const num = o.orderNumber;
+              if (num && o.status) {
+                const oldSt = prevStatusesRef.current[num];
                 if (oldSt && oldSt !== o.status) {
                   statusChanged = true;
                 }
-                prevStatusesRef.current[o.orderNumber] = o.status;
+                prevStatusesRef.current[num] = o.status;
               }
             });
 
@@ -321,8 +375,8 @@ export function App() {
               try { window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success'); } catch {}
             }
 
-            setOrders(serverOrders);
-            localStorage.setItem('tg_store_orders', JSON.stringify(serverOrders));
+            setOrders(normalizedOrders);
+            localStorage.setItem('tg_store_orders', JSON.stringify(normalizedOrders));
           }
         }
       } catch {
@@ -505,10 +559,11 @@ export function App() {
     const newCart: { [id: string]: number } = {};
     const skippedItems: string[] = [];
 
-    for (const item of order.items) {
+    const orderItems = Array.isArray(order.items) ? order.items : [];
+    for (const item of orderItems) {
       const prod = products.find(p => p.id === item.id);
       if (prod && prod.isAvailable !== false) {
-        newCart[item.id] = item.quantity;
+        newCart[item.id] = Number(item.quantity) || 1;
       } else {
         skippedItems.push(item.name);
       }
@@ -516,7 +571,8 @@ export function App() {
 
     setCart(newCart);
     if (order.address) setAddress(order.address);
-    if (order.customerName) setCustomerName(order.customerName);
+    const cName = order.customerName || (order as any).user_name;
+    if (cName) setCustomerName(cName);
     if (order.phone) setPhone(order.phone);
     if (order.email) setEmail(order.email);
 
@@ -529,21 +585,61 @@ export function App() {
     setIsCartOpen(true);
   };
 
+  const handleArchiveOrder = (orderNum: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    triggerHaptic('light');
+    playSound('add');
+    setArchivedOrderNums(prev => {
+      const next = prev.includes(orderNum) ? prev : [...prev, orderNum];
+      localStorage.setItem('tg_store_archived_orders', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleUnarchiveOrder = (orderNum: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    triggerHaptic('light');
+    playSound('add');
+    setArchivedOrderNums(prev => {
+      const next = prev.filter(num => num !== orderNum);
+      localStorage.setItem('tg_store_archived_orders', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const confirmDeleteOrder = async () => {
     if (!orderToDelete) return;
     triggerHaptic('medium');
     playSound('remove');
-    const orderNum = orderToDelete.orderNumber;
+    const orderNum = orderToDelete.orderNumber || (orderToDelete as any).order_number;
+    if (!orderNum) {
+      setOrderToDelete(null);
+      return;
+    }
 
-    setOrders(prev => prev.filter(o => o.orderNumber !== orderNum));
+    setOrders(prev => prev.filter(o => (o.orderNumber || (o as any).order_number) !== orderNum));
+
+    setArchivedOrderNums(prev => {
+      const next = prev.filter(num => num !== orderNum);
+      localStorage.setItem('tg_store_archived_orders', JSON.stringify(next));
+      return next;
+    });
+
+    setDeletedOrderNums(prev => {
+      const next = prev.includes(orderNum) ? prev : [...prev, orderNum];
+      localStorage.setItem('tg_store_deleted_orders', JSON.stringify(next));
+      return next;
+    });
 
     try {
       await fetch(`${API_BASE_URL}/api/orders/delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderNumber: orderNum })
+        body: JSON.stringify({ orderNumber: orderNum, order_number: orderNum })
       });
-    } catch {}
+    } catch (e) {
+      console.warn('API delete error:', e);
+    }
 
     setOrderToDelete(null);
   };
@@ -634,9 +730,28 @@ export function App() {
     setOrderSuccess(newOrder);
   };
 
-  const activeOrders = useMemo(() => {
-    return orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
-  }, [orders]);
+  const unarchivedOrders = useMemo(() => {
+    const archivedSet = new Set(archivedOrderNums);
+    return orders.filter(o => {
+      const num = o.orderNumber || (o as any).order_number;
+      return num && !archivedSet.has(num);
+    });
+  }, [orders, archivedOrderNums]);
+
+  const archivedOrders = useMemo(() => {
+    const archivedSet = new Set(archivedOrderNums);
+    return orders.filter(o => {
+      const num = o.orderNumber || (o as any).order_number;
+      return num && archivedSet.has(num);
+    });
+  }, [orders, archivedOrderNums]);
+
+  const inProgressOrders = useMemo(() => {
+    return unarchivedOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
+  }, [unarchivedOrders]);
+
+  const activeOrders = inProgressOrders;
+  const displayedOrders = orderFilterTab === 'active' ? unarchivedOrders : archivedOrders;
 
   // Organic soft colors
   const theme = {
@@ -936,49 +1051,93 @@ export function App() {
         {/* ================= TAB 2: MY ORDERS ================= */}
         {activeTab === 'orders' && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between mb-1">
+            {/* Header + Tabs (Active vs Archive) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-1">
               <div>
                 <h2 className={`text-sm font-semibold tracking-tight ${theme.textPrimary}`}>
                   Мои заказы
                 </h2>
                 <p className={`text-[11px] ${theme.textMuted}`}>
-                  Отслеживание статуса и времени доставки
+                  Отслеживание статуса и архив выполненных заказов
                 </p>
               </div>
-              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-lg border ${theme.cardBorder} ${theme.textMuted}`}>
-                {orders.length} заказов
-              </span>
-            </div>
 
-            {orders.length === 0 ? (
-              <div className="text-center py-16 space-y-2.5">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${theme.subtleBg} ${theme.textMuted}`}>
-                  <Package className="w-6 h-6" />
-                </div>
-                <h3 className={`text-xs font-semibold ${theme.textPrimary}`}>
-                  Заказов пока нет
-                </h3>
-                <p className={`text-[11px] max-w-xs mx-auto ${theme.textMuted}`}>
-                  Выберите понравившиеся блюда в меню
-                </p>
+              {/* Segmented controls: Активные / Архив */}
+              <div className={`inline-flex items-center p-0.5 rounded-xl border self-start sm:self-auto ${theme.subtleBg} ${theme.cardBorder}`}>
                 <button
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setActiveTab('menu');
-                  }}
-                  className={`px-4 py-2 rounded-xl text-xs font-medium cursor-pointer ${theme.accentBg}`}
+                  onClick={() => { triggerHaptic('light'); setOrderFilterTab('active'); }}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                    orderFilterTab === 'active'
+                      ? `${theme.cardBg} ${theme.textPrimary} shadow-xs font-semibold`
+                      : `${theme.textMuted}`
+                  }`}
                 >
-                  Перейти в меню
+                  <span>Активные</span>
+                  {unarchivedOrders.length > 0 && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                      orderFilterTab === 'active' ? 'bg-[#c86428]/15 text-[#c86428] font-bold' : theme.subtleBg
+                    }`}>
+                      {unarchivedOrders.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => { triggerHaptic('light'); setOrderFilterTab('archived'); }}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                    orderFilterTab === 'archived'
+                      ? `${theme.cardBg} ${theme.textPrimary} shadow-xs font-semibold`
+                      : `${theme.textMuted}`
+                  }`}
+                >
+                  <Archive className="w-3.5 h-3.5" />
+                  <span>Архив</span>
+                  {archivedOrders.length > 0 && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                      orderFilterTab === 'archived' ? 'bg-[#c86428]/15 text-[#c86428] font-bold' : theme.subtleBg
+                    }`}>
+                      {archivedOrders.length}
+                    </span>
+                  )}
                 </button>
               </div>
+            </div>
+
+            {displayedOrders.length === 0 ? (
+              <div className="text-center py-16 space-y-2.5">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${theme.subtleBg} ${theme.textMuted}`}>
+                  {orderFilterTab === 'active' ? <Package className="w-6 h-6" /> : <Archive className="w-6 h-6" />}
+                </div>
+                <h3 className={`text-xs font-semibold ${theme.textPrimary}`}>
+                  {orderFilterTab === 'active' ? 'Активных заказов пока нет' : 'В архиве пока пусто'}
+                </h3>
+                <p className={`text-[11px] max-w-xs mx-auto ${theme.textMuted}`}>
+                  {orderFilterTab === 'active'
+                    ? 'Выберите понравившиеся блюда в меню для оформления заказа'
+                    : 'Вы можете переносить завершенные заказы в архив, чтобы они не загромождали список'}
+                </p>
+                {orderFilterTab === 'active' && (
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setActiveTab('menu');
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-medium cursor-pointer ${theme.accentBg}`}
+                  >
+                    Перейти в меню
+                  </button>
+                )}
+              </div>
             ) : (
-              orders.map(order => {
+              displayedOrders.map(order => {
+                const orderNum = order.orderNumber || (order as any).order_number || String(order.id);
+                const orderPrice = Number(order.totalPrice ?? (order as any).total_price ?? 0);
                 const stageIndex = order.status === 'cooking' ? 2 : order.status === 'delivering' ? 3 : order.status === 'completed' ? 4 : 1;
                 const isCancelled = order.status === 'cancelled';
 
                 return (
                   <div
-                    key={order.orderNumber || order.id}
+                    key={orderNum}
                     className={`rounded-2xl border p-3.5 space-y-3 transition-colors ${theme.cardBg} ${theme.cardBorder}`}
                   >
                     {/* Header */}
@@ -988,7 +1147,7 @@ export function App() {
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className={`font-semibold text-xs ${theme.textPrimary}`}>
-                            Заказ #{order.orderNumber}
+                            Заказ #{orderNum}
                           </span>
                           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
                             order.status === 'completed' ? 'bg-[#2b8a3e]/15 text-[#37b24d]' :
@@ -1003,12 +1162,12 @@ export function App() {
                              order.status === 'cancelled' ? 'Отменен' : 'Принят'}
                           </span>
                         </div>
-                        <div className={`text-[10px] mt-0.5 ${theme.textMuted}`}>{order.createdAt}</div>
+                        <div className={`text-[10px] mt-0.5 ${theme.textMuted}`}>{order.createdAt || (order as any).created_at || ''}</div>
                       </div>
 
                       <div className="text-right">
                         <div className={`text-sm font-semibold ${theme.textPrimary}`}>
-                          {order.totalPrice} ₽
+                          {orderPrice} ₽
                         </div>
                         <div className={`text-[10px] ${theme.textMuted}`}>
                           Оплата при получении
@@ -1017,18 +1176,22 @@ export function App() {
                     </div>
 
                     {/* ETA (TIME ESTIMATE) FROM ADMIN */}
-                    {!isCancelled && (order.estimatedTime || order.statusNote) && (
+                    {!isCancelled && (order.estimatedTime || order.statusNote || (order as any).estimated_time || (order as any).status_note) && (
                       <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
                         isDarkTheme ? 'bg-[#1f2026] border-[#2c2e35]' : 'bg-[#f7f5ee] border-[#eae6db]'
                       }`}>
                         <div className="flex items-center gap-2">
                           <Clock className={`w-3.5 h-3.5 ${theme.accentColor} shrink-0`} />
                           <div>
-                            {order.estimatedTime && (
-                              <span className={`font-medium ${theme.textPrimary}`}>Примерное время: {order.estimatedTime}</span>
+                            {(order.estimatedTime || (order as any).estimated_time) && (
+                              <span className={`font-medium ${theme.textPrimary}`}>
+                                Примерное время: {order.estimatedTime || (order as any).estimated_time}
+                              </span>
                             )}
-                            {order.statusNote && (
-                              <div className={`text-[11px] ${theme.textMuted}`}>{order.statusNote}</div>
+                            {(order.statusNote || (order as any).status_note) && (
+                              <div className={`text-[11px] ${theme.textMuted}`}>
+                                {order.statusNote || (order as any).status_note}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1089,14 +1252,18 @@ export function App() {
 
                     {/* Order Items */}
                     <div className="space-y-1 text-xs">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-[11px]">
-                          <span className={`truncate max-w-[220px] ${theme.textPrimary}`}>
-                            {item.quantity} × {item.name}
-                          </span>
-                          <span className={`font-medium ${theme.textMuted}`}>{item.price * item.quantity} ₽</span>
-                        </div>
-                      ))}
+                      {Array.isArray(order.items) && order.items.map((item, idx) => {
+                        const itemPrice = Number(item.price) || 0;
+                        const itemQty = Number(item.quantity) || 1;
+                        return (
+                          <div key={idx} className="flex justify-between items-center text-[11px]">
+                            <span className={`truncate max-w-[220px] ${theme.textPrimary}`}>
+                              {itemQty} × {item.name}
+                            </span>
+                            <span className={`font-medium ${theme.textMuted}`}>{itemPrice * itemQty} ₽</span>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Action Buttons */}
@@ -1113,11 +1280,36 @@ export function App() {
                         <span>Повторить заказ</span>
                       </button>
 
+                      {orderFilterTab === 'active' ? (
+                        <button
+                          onClick={(e) => handleArchiveOrder(orderNum, e)}
+                          className={`px-2.5 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
+                            isDarkTheme ? 'border-[#2f323a] hover:bg-[#202227] text-[#c7c6bf]' : 'border-[#dfdbd1] hover:bg-[#f3f0ea] text-[#4f4c46]'
+                          }`}
+                          title="Перенести заказ в архив"
+                        >
+                          <Archive className="w-3.5 h-3.5 text-[#c86428]" />
+                          <span>В архив</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => handleUnarchiveOrder(orderNum, e)}
+                          className={`px-2.5 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
+                            isDarkTheme ? 'border-[#2f323a] hover:bg-[#202227] text-[#c7c6bf]' : 'border-[#dfdbd1] hover:bg-[#f3f0ea] text-[#4f4c46]'
+                          }`}
+                          title="Вернуть в активные заказы"
+                        >
+                          <ArchiveRestore className="w-3.5 h-3.5 text-[#37b24d]" />
+                          <span>Вернуть</span>
+                        </button>
+                      )}
+
                       <button
                         onClick={() => setOrderToDelete(order)}
                         className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                           isDarkTheme ? 'border-[#26282e] text-[#6c6e75] hover:text-[#e03131]' : 'border-[#eeece7] text-[#a09d96] hover:text-[#d03a3a]'
                         }`}
+                        title="Удалить заказ"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1612,8 +1804,10 @@ export function App() {
       {orderToDelete && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${theme.cardBg} ${theme.cardBorder}`}>
-            <h3 className={`text-xs font-semibold ${theme.textPrimary}`}>Удалить заказ #{orderToDelete.orderNumber}?</h3>
-            <p className={`text-[11px] ${theme.textMuted}`}>Заказ исчезнет из списка ваших заказов.</p>
+            <h3 className={`text-xs font-semibold ${theme.textPrimary}`}>
+              Удалить заказ #{orderToDelete.orderNumber || (orderToDelete as any).order_number}?
+            </h3>
+            <p className={`text-[11px] ${theme.textMuted}`}>Заказ будет удален из списка и базы данных.</p>
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => setOrderToDelete(null)}

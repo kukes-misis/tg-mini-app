@@ -150,7 +150,7 @@ def create_order(order_number, user_id, user_name, username, phone, email, addre
     conn.commit()
     conn.close()
 
-def get_orders(limit=20, status=None):
+def get_orders(limit=100, status=None):
     conn = _connect()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -159,12 +159,22 @@ def get_orders(limit=20, status=None):
     else:
         cursor.execute("SELECT * FROM orders ORDER BY id DESC LIMIT ?", (limit,))
     rows = cursor.fetchall()
-    orders = [dict(row) for row in rows]
-    for o in orders:
+    orders = []
+    for row in rows:
+        o = dict(row)
         try:
-            o['items'] = json.loads(o['items_json'])
+            o['items'] = json.loads(o.get('items_json') or '[]')
         except Exception:
             o['items'] = []
+        o['orderNumber'] = o.get('order_number')
+        o['totalPrice'] = o.get('total_price')
+        o['customerName'] = o.get('user_name')
+        o['paymentMethod'] = o.get('payment_method')
+        o['paymentStatus'] = o.get('payment_status')
+        o['estimatedTime'] = o.get('estimated_time')
+        o['statusNote'] = o.get('status_note')
+        o['createdAt'] = o.get('created_at')
+        orders.append(o)
     conn.close()
     return orders
 
@@ -174,12 +184,22 @@ def get_order_by_number(order_number):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM orders WHERE order_number = ?", (order_number,))
     row = cursor.fetchone()
-    order = dict(row) if row else None
-    if order:
-        try:
-            order['items'] = json.loads(order['items_json'])
-        except Exception:
-            order['items'] = []
+    if not row:
+        conn.close()
+        return None
+    order = dict(row)
+    try:
+        order['items'] = json.loads(order.get('items_json') or '[]')
+    except Exception:
+        order['items'] = []
+    order['orderNumber'] = order.get('order_number')
+    order['totalPrice'] = order.get('total_price')
+    order['customerName'] = order.get('user_name')
+    order['paymentMethod'] = order.get('payment_method')
+    order['paymentStatus'] = order.get('payment_status')
+    order['estimatedTime'] = order.get('estimated_time')
+    order['statusNote'] = order.get('status_note')
+    order['createdAt'] = order.get('created_at')
     conn.close()
     return order
 
