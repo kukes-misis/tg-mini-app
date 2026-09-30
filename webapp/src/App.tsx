@@ -1015,60 +1015,61 @@ export function App() {
   const activeOrders = inProgressOrders;
   const displayedOrders = orderFilterTab === 'active' ? unarchivedOrders : archivedOrders;
 
-  // Organic soft colors
+  // MPSTATS High-contrast Tech Minimalism tokens
   const theme = {
-    bg: isDarkTheme ? 'bg-[#121316]' : 'bg-[#faf9f6]',
-    cardBg: isDarkTheme ? 'bg-[#1b1c20]' : 'bg-[#ffffff]',
-    cardBorder: isDarkTheme ? 'border-[#26282e]' : 'border-[#eeece7]',
-    subtleBg: isDarkTheme ? 'bg-[#16171b]' : 'bg-[#f4f2ed]',
-    textPrimary: isDarkTheme ? 'text-[#f2f1ec]' : 'text-[#1c1b18]',
-    textMuted: isDarkTheme ? 'text-[#8e9098]' : 'text-[#7e7b75]',
-    accentColor: isDarkTheme ? 'text-[#e58d4a]' : 'text-[#c86428]',
-    accentBg: isDarkTheme ? 'bg-[#e58d4a] text-black' : 'bg-[#1c1b18] text-white',
-    pillActive: isDarkTheme ? 'bg-[#f2f1ec] text-[#121316]' : 'bg-[#1c1b18] text-[#ffffff]',
-    pillInactive: isDarkTheme ? 'bg-[#1b1c20] text-[#8e9098] border border-[#26282e]' : 'bg-[#ffffff] text-[#6d6a64] border border-[#eeece7]'
+    bg: isDarkTheme ? 'bg-[#0c0d10]' : 'bg-[#f7f8fa]',
+    cardBg: isDarkTheme ? 'bg-[#14151a]' : 'bg-[#ffffff]',
+    cardBorder: isDarkTheme ? 'border-[#22242c]' : 'border-[#e5e7eb]',
+    subtleBg: isDarkTheme ? 'bg-[#1a1b22]' : 'bg-[#f1f2f5]',
+    textPrimary: isDarkTheme ? 'text-[#f4f5f8]' : 'text-[#0c0d10]',
+    textMuted: isDarkTheme ? 'text-[#8b8f9e]' : 'text-[#6b7280]',
+    accentColor: 'text-[#16ff60]',
+    accentBg: isDarkTheme ? 'bg-[#16ff60] text-[#0c0d10] font-bold' : 'bg-[#0c0d10] text-[#ffffff] font-bold',
+    pillActive: isDarkTheme ? 'bg-[#16ff60] text-[#0c0d10] font-bold shadow-[0_0_15px_rgba(22,255,96,0.3)]' : 'bg-[#0c0d10] text-[#ffffff] font-bold',
+    pillInactive: isDarkTheme ? 'bg-[#14151a] text-[#8b8f9e] border border-[#22242c]' : 'bg-[#ffffff] text-[#6b7280] border border-[#e5e7eb]'
   };
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-150 select-none pb-24 ${theme.bg} ${theme.textPrimary}`}>
+    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-150 select-none pb-28 ${theme.bg} ${theme.textPrimary}`}>
 
-      {/* MINIMALIST HEADER */}
-      <header className={`sticky top-0 z-30 px-4 py-3 border-b transition-colors ${
-        isDarkTheme ? 'bg-[#121316]/95 border-[#22242a]' : 'bg-[#faf9f6]/95 border-[#edebe5]'
+      {/* MPSTATS TECH MINIMALIST HEADER */}
+      <header className={`sticky top-0 z-30 px-4 py-3 border-b backdrop-blur-xl transition-colors ${
+        isDarkTheme ? 'bg-[#0c0d10]/90 border-[#22242c]' : 'bg-[#f7f8fa]/90 border-[#e5e7eb]'
       }`}>
         <div className="flex items-center justify-between gap-3">
           
-          {/* Refined Brand typography */}
+          {/* Brand Typography */}
           <div>
             <div className="flex items-center gap-1.5">
-              <span className={`text-[15px] font-semibold tracking-tight ${theme.textPrimary}`}>
+              <span className={`text-[15px] font-extrabold tracking-tight uppercase ${theme.textPrimary}`}>
                 Vibe Kitchen
               </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#c86428]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#16ff60] shadow-[0_0_8px_#16ff60]" />
             </div>
-            <div className={`text-[11px] font-medium ${theme.textMuted}`}>
-              Гастрономическое бистро
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#8b8f9e]">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#16ff60] animate-pulse" />
+              <span>Кухня онлайн • 25–35 мин</span>
             </div>
           </div>
 
           {/* Right Header Controls */}
           <div className="flex items-center gap-2">
             
-            {/* Soft Moscow Time Pill */}
+            {/* Moscow Time Glass Pill */}
             <button
               onClick={() => {
                 triggerHaptic('light');
                 setIsDarkTheme(!isDarkTheme);
               }}
               title="Переключить тему"
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all active:scale-95 cursor-pointer ${
                 isDarkTheme 
-                  ? 'bg-[#1b1c20] border-[#292c33] text-[#c7c6bf]' 
-                  : 'bg-[#ffffff] border-[#e7e5de] text-[#55524c]'
+                  ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8] hover:border-[#333742]' 
+                  : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10] hover:border-[#d1d5db]'
               }`}
             >
-              {isDarkTheme ? <Moon className="w-3.5 h-3.5 text-[#e58d4a]" /> : <Sun className="w-3.5 h-3.5 text-[#c86428]" />}
-              <span>{moscowTimeStr}</span>
+              {isDarkTheme ? <Moon className="w-3.5 h-3.5 text-[#16ff60]" /> : <Sun className="w-3.5 h-3.5 text-[#ff5533]" />}
+              <span className="font-mono text-[11px]">{moscowTimeStr}</span>
             </button>
 
             {/* Cart Button */}
@@ -1077,11 +1078,15 @@ export function App() {
                 triggerHaptic('medium');
                 setIsCartOpen(true);
               }}
-              className={`relative p-2 rounded-xl transition-transform active:scale-95 cursor-pointer ${theme.accentBg}`}
+              className={`relative p-2.5 rounded-full border transition-all active:scale-95 cursor-pointer ${
+                isDarkTheme 
+                  ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8] hover:border-[#16ff60]/50' 
+                  : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10] hover:border-black'
+              }`}
             >
               <ShoppingBag className="w-4 h-4" />
               {totalItemsCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[#c86428] text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-white">
+                <span className="absolute -top-1 -right-1 bg-[#16ff60] text-[#0c0d10] text-[10px] font-black rounded-full min-w-4 h-4 px-1 flex items-center justify-center shadow-[0_0_10px_rgba(22,255,96,0.6)]">
                   {totalItemsCount}
                 </span>
               )}
@@ -1096,16 +1101,19 @@ export function App() {
               triggerHaptic('light');
               setActiveTab('orders');
             }}
-            className={`mt-2 p-2 rounded-xl border flex items-center justify-between text-xs cursor-pointer ${
-              isDarkTheme ? 'bg-[#1b1c20] border-[#292c33]' : 'bg-[#ffffff] border-[#e7e5de]'
+            className={`mt-2.5 px-3 py-2 rounded-xl border flex items-center justify-between text-xs cursor-pointer transition-all active:scale-[0.99] ${
+              isDarkTheme ? 'bg-[#14151a] border-[#22242c] hover:border-[#16ff60]/40' : 'bg-[#ffffff] border-[#e5e7eb]'
             }`}
           >
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#c86428]" />
-              <span className="font-medium">Заказ в процессе</span>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#16ff60] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#16ff60]"></span>
+              </span>
+              <span className="font-bold text-xs tracking-tight">Заказ в процессе выполнения</span>
             </div>
-            <div className={`flex items-center gap-1 font-semibold ${theme.accentColor}`}>
-              <span>Статус</span>
+            <div className="flex items-center gap-1 font-extrabold text-xs text-[#16ff60]">
+              <span>Трекер</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
           </div>
@@ -1121,36 +1129,36 @@ export function App() {
             
             {/* Search Bar */}
             <div className="relative">
-              <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${theme.textMuted}`} />
+              <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${theme.textMuted}`} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Поиск по меню..."
-                className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs border transition-colors focus:outline-none ${
+                placeholder="Поиск по меню (бургеры, паста, напитки)..."
+                className={`w-full pl-10 pr-9 py-2.5 rounded-full text-xs border transition-all focus:outline-none ${
                   isDarkTheme 
-                    ? 'bg-[#1b1c20] border-[#26282e] text-[#f2f1ec] placeholder:text-[#6c6e75] focus:border-[#4f525c]' 
-                    : 'bg-[#ffffff] border-[#eeece7] text-[#1c1b18] placeholder:text-[#a09d96] focus:border-[#b8b5ac]'
+                    ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8] placeholder:text-[#6b7280] focus:border-[#16ff60] focus:shadow-[0_0_12px_rgba(22,255,96,0.15)]' 
+                    : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10] placeholder:text-[#9ca3af] focus:border-black'
                 }`}
               />
               {searchQuery && (
                 <button 
                   onClick={() => setSearchQuery('')}
-                  className={`absolute right-2.5 top-1/2 -translate-y-1/2 ${theme.textMuted}`}
+                  className={`absolute right-3.5 top-1/2 -translate-y-1/2 ${theme.textMuted} hover:text-white`}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
-            {/* Category Chips Bar */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+            {/* Category Chips Bar (Pills) */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               <button
                 onClick={() => {
                   triggerHaptic('light');
                   setSelectedCategory('all');
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   selectedCategory === 'all' ? theme.pillActive : theme.pillInactive
                 }`}
               >
@@ -1162,13 +1170,13 @@ export function App() {
                   triggerHaptic('light');
                   setSelectedCategory('favorites');
                 }}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   selectedCategory === 'favorites' 
-                    ? (isDarkTheme ? 'bg-[#e54a4a] text-white' : 'bg-[#d03a3a] text-white')
+                    ? 'bg-[#ff5533] text-white shadow-[0_0_15px_rgba(255,85,51,0.35)]'
                     : theme.pillInactive
                 }`}
               >
-                <Heart className={`w-3 h-3 ${wishlist.length > 0 ? 'fill-current' : ''}`} />
+                <Heart className={`w-3.5 h-3.5 ${wishlist.length > 0 ? 'fill-current' : ''}`} />
                 <span>Избранное ({wishlist.length})</span>
               </button>
 
@@ -1179,7 +1187,7 @@ export function App() {
                     triggerHaptic('light');
                     setSelectedCategory(cat.id);
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                  className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                     selectedCategory === cat.id ? theme.pillActive : theme.pillInactive
                   }`}
                 >
@@ -1199,12 +1207,12 @@ export function App() {
                   <div
                     key={product.id}
                     onClick={() => setSelectedProduct(product)}
-                    className={`rounded-2xl border flex flex-col justify-between overflow-hidden transition-all cursor-pointer ${
+                    className={`rounded-2xl border flex flex-col justify-between overflow-hidden transition-all duration-200 cursor-pointer ${
                       theme.cardBg
-                    } ${theme.cardBorder} ${!isAvail ? 'opacity-50 grayscale-[35%]' : ''}`}
+                    } ${theme.cardBorder} hover:border-[#383d4a] active:scale-[0.99] ${!isAvail ? 'opacity-50 grayscale-[35%]' : ''}`}
                   >
-                    {/* Natural Image Container */}
-                    <div className="relative aspect-4/3 overflow-hidden bg-[#202125]">
+                    {/* Image Container */}
+                    <div className="relative aspect-4/3 overflow-hidden bg-[#1a1b22]">
                       <img
                         src={product.image}
                         alt={product.name}
@@ -1214,12 +1222,12 @@ export function App() {
 
                       <div className="absolute top-2 left-2 flex flex-col gap-1">
                         {product.badge && (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#141518]/80 text-white backdrop-blur-xs">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0c0d10]/85 text-[#16ff60] border border-[#16ff60]/30 backdrop-blur-md">
                             {product.badge}
                           </span>
                         )}
                         {product.spicy && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#bd3a2e]/90 text-white backdrop-blur-xs flex items-center gap-0.5">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ff5533]/90 text-white backdrop-blur-md flex items-center gap-0.5">
                             <Flame className="w-2.5 h-2.5" /> Острое
                           </span>
                         )}
@@ -1227,15 +1235,15 @@ export function App() {
 
                       <button
                         onClick={(e) => toggleWishlist(product.id, e)}
-                        className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-xs transition-transform active:scale-90 ${
-                          isFav ? 'bg-[#d03a3a] text-white' : 'bg-black/35 text-white'
+                        className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-md transition-transform active:scale-90 cursor-pointer ${
+                          isFav ? 'bg-[#ff5533] text-white shadow-[0_0_10px_rgba(255,85,51,0.5)]' : 'bg-[#0c0d10]/60 border border-white/10 text-white'
                         }`}
                       >
                         <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
                       </button>
 
                       {product.weight && (
-                        <div className="absolute bottom-1.5 left-2 px-1.5 py-0.5 rounded bg-black/55 backdrop-blur-xs text-[10px] text-white/90">
+                        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full bg-[#0c0d10]/70 backdrop-blur-md border border-white/10 text-[10px] font-medium text-white/90">
                           {product.weight}
                         </div>
                       )}
@@ -1244,21 +1252,21 @@ export function App() {
                     {/* Content */}
                     <div className="p-2.5 flex-1 flex flex-col justify-between">
                       <div>
-                        <h3 className={`text-xs font-semibold tracking-tight line-clamp-1 mb-0.5 ${theme.textPrimary}`}>
+                        <h3 className={`text-xs font-bold tracking-tight line-clamp-1 mb-0.5 ${theme.textPrimary}`}>
                           {product.name}
                         </h3>
-                        <p className={`text-[11px] line-clamp-2 leading-relaxed mb-1.5 ${theme.textMuted}`}>
+                        <p className={`text-[11px] line-clamp-2 leading-relaxed mb-2 ${theme.textMuted}`}>
                           {product.description}
                         </p>
 
-                        {/* KBJU Info Badge */}
+                        {/* Analytical KBJU Chip */}
                         {Boolean(product.calories) && (
-                          <div className={`inline-flex items-center gap-1.5 text-[10px] mb-2 px-1.5 py-0.5 rounded-md font-medium tracking-tight ${
-                            isDarkTheme ? 'bg-[#222328] text-[#c2c4cb]' : 'bg-[#eeece7] text-[#4f4c46]'
+                          <div className={`inline-flex items-center gap-1.5 text-[10px] mb-2 px-2 py-0.5 rounded-full font-medium tracking-tight border ${
+                            isDarkTheme ? 'bg-[#1a1b22] border-[#262832] text-[#c2c4cb]' : 'bg-[#f1f2f5] border-[#e5e7eb] text-[#4f4c46]'
                           }`}>
-                            <span className="font-semibold text-[#c86428]">{product.calories} ккал</span>
+                            <span className="font-extrabold text-[#ff5533]">⚡ {product.calories} ккал</span>
                             {Boolean(product.proteins || product.fats || product.carbs) && (
-                              <span className="opacity-75">
+                              <span className="opacity-75 font-mono text-[9px]">
                                 • БЖУ {product.proteins || 0}/{product.fats || 0}/{product.carbs || 0}г
                               </span>
                             )}
@@ -1267,11 +1275,11 @@ export function App() {
                       </div>
 
                       {/* Price & Add Action */}
-                      <div className={`flex items-center justify-between pt-1 border-t ${
-                        isDarkTheme ? 'border-[#26282e]' : 'border-[#f0eee9]'
+                      <div className={`flex items-center justify-between pt-1.5 border-t ${
+                        isDarkTheme ? 'border-[#22242c]' : 'border-[#e5e7eb]'
                       }`}>
                         <div>
-                          <div className={`text-sm font-semibold ${theme.textPrimary}`}>
+                          <div className={`text-sm font-black tabular-nums ${theme.textPrimary}`}>
                             {product.price} ₽
                           </div>
                           {Boolean(product.oldPrice && Number(product.oldPrice) > Number(product.price)) && (
@@ -1285,33 +1293,33 @@ export function App() {
                           qty > 0 ? (
                             <div 
                               onClick={e => e.stopPropagation()} 
-                              className={`flex items-center gap-1.5 rounded-lg p-0.5 ${theme.accentBg}`}
+                              className="flex items-center gap-1 rounded-full p-0.5 bg-[#16ff60] text-[#0c0d10] font-bold shadow-[0_0_12px_rgba(22,255,96,0.3)]"
                             >
                               <button 
                                 onClick={e => removeFromCart(product.id, e)}
-                                className="w-5 h-5 rounded flex items-center justify-center cursor-pointer"
+                                className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/10 active:scale-90 transition-transform cursor-pointer"
                               >
-                                <Minus className="w-3 h-3" />
+                                <Minus className="w-3 h-3 stroke-[2.5]" />
                               </button>
-                              <span className="text-xs font-semibold px-1 min-w-[14px] text-center">{qty}</span>
+                              <span className="text-xs font-black px-1 min-w-[14px] text-center">{qty}</span>
                               <button 
                                 onClick={e => addToCart(product.id, e)}
-                                className="w-5 h-5 rounded flex items-center justify-center cursor-pointer"
+                                className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/10 active:scale-90 transition-transform cursor-pointer"
                               >
-                                <Plus className="w-3 h-3" />
+                                <Plus className="w-3 h-3 stroke-[2.5]" />
                               </button>
                             </div>
                           ) : (
                             <button
                               onClick={e => addToCart(product.id, e)}
-                              className={`px-2.5 py-1 rounded-lg font-medium text-xs transition-colors flex items-center gap-1 cursor-pointer ${theme.accentBg}`}
+                              className="px-3 py-1.5 rounded-full font-extrabold text-xs transition-transform active:scale-95 flex items-center gap-1 cursor-pointer bg-[#16ff60] text-[#0c0d10] shadow-[0_2px_10px_rgba(22,255,96,0.25)] hover:brightness-105"
                             >
-                              <Plus className="w-3 h-3" />
-                              <span>Добавить</span>
+                              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>+ В корзину</span>
                             </button>
                           )
                         ) : (
-                          <span className={`text-[10px] font-medium uppercase px-2 py-0.5 rounded ${theme.subtleBg} ${theme.textMuted}`}>
+                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${theme.subtleBg} ${theme.textMuted}`}>
                             Стоп
                           </span>
                         )}
@@ -1425,11 +1433,11 @@ export function App() {
                           <span className={`font-semibold text-xs ${theme.textPrimary}`}>
                             Заказ #{orderNum}
                           </span>
-                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                            order.status === 'completed' ? 'bg-[#2b8a3e]/15 text-[#37b24d]' :
-                            order.status === 'delivering' ? 'bg-[#1971c2]/15 text-[#339af0]' :
-                            order.status === 'cooking' ? 'bg-[#e58d4a]/15 text-[#e58d4a]' :
-                            order.status === 'cancelled' ? 'bg-[#e03131]/15 text-[#f03e3e]' :
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            order.status === 'completed' ? 'bg-[#16ff60]/15 text-[#16ff60] border-[#16ff60]/30' :
+                            order.status === 'delivering' ? 'bg-[#8b5cf6]/15 text-[#a78bfa] border-[#8b5cf6]/30' :
+                            order.status === 'cooking' ? 'bg-[#ffaa00]/15 text-[#ffbe3b] border-[#ffaa00]/30' :
+                            order.status === 'cancelled' ? 'bg-[#ff5533]/15 text-[#ff5533] border-[#ff5533]/30' :
                             theme.subtleBg
                           }`}>
                             {order.status === 'completed' ? 'Доставлен' :
@@ -1438,11 +1446,11 @@ export function App() {
                              order.status === 'cancelled' ? 'Отменен' : 'Принят'}
                           </span>
                         </div>
-                        <div className={`text-[10px] mt-0.5 ${theme.textMuted}`}>{order.createdAt || (order as any).created_at || ''}</div>
+                        <div className={`text-[10px] font-mono mt-0.5 ${theme.textMuted}`}>{order.createdAt || (order as any).created_at || ''}</div>
                       </div>
 
                       <div className="text-right">
-                        <div className={`text-sm font-semibold ${theme.textPrimary}`}>
+                        <div className={`text-sm font-black tabular-nums ${theme.textPrimary}`}>
                           {orderPrice} ₽
                         </div>
                         <div className={`text-[10px] ${theme.textMuted}`}>
@@ -1456,11 +1464,11 @@ export function App() {
                       order.status === 'completed' ? (
                         /* Completed Order: Delivered Duration Badge */
                         <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
-                          isDarkTheme ? 'bg-[#18261e] border-[#22472d]' : 'bg-[#f0f9f2] border-[#d3ebd7]'
+                          isDarkTheme ? 'bg-[#142319] border-[#1b3d26]' : 'bg-[#f0fdf4] border-[#bbf7d0]'
                         }`}>
                           <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 shrink-0 text-[#2b8a3e]" />
-                            <span className={`font-semibold ${isDarkTheme ? 'text-[#51cf66]' : 'text-[#2b8a3e]'}`}>
+                            <CheckCircle2 className="w-4 h-4 shrink-0 text-[#16ff60]" />
+                            <span className="font-bold text-[#16ff60]">
                               Заказ доставлен за {getDeliveredDurationText(order)}
                             </span>
                           </div>
@@ -1474,15 +1482,15 @@ export function App() {
                           const cd = getOrderCountdown(order, nowTick);
                           return (
                             <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
-                              isDarkTheme ? 'bg-[#241c17] border-[#3d2c20]' : 'bg-[#fff7f0] border-[#fed7aa]'
+                              isDarkTheme ? 'bg-[#1e172a] border-[#362752]' : 'bg-[#faf5ff] border-[#e9d5ff]'
                             }`}>
                               <div className="flex items-center gap-2">
                                 <span className="relative flex h-2.5 w-2.5 shrink-0">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#c86428] opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#c86428]"></span>
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8b5cf6] opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#8b5cf6]"></span>
                                 </span>
                                 <div>
-                                  <span className={`font-semibold ${isDarkTheme ? 'text-[#e58045]' : 'text-[#c86428]'}`}>
+                                  <span className="font-bold text-[#a78bfa]">
                                     {cd?.isArriving ? '🚴 Курьер уже подъезжает!' : '🚴 Курьер в пути'}
                                   </span>
                                   {order.statusNote && (
@@ -1490,7 +1498,7 @@ export function App() {
                                   )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1.5 font-mono font-bold text-sm text-[#c86428] shrink-0">
+                              <div className="flex items-center gap-1.5 font-mono font-bold text-sm text-[#a78bfa] shrink-0">
                                 <Clock className="w-3.5 h-3.5" />
                                 <span>{cd ? (cd.isArriving ? 'Менее 1 мин' : cd.timeStr) : (order.estimatedTime || 'В пути')}</span>
                               </div>
@@ -1503,12 +1511,12 @@ export function App() {
                           const cd = getOrderCountdown(order, nowTick);
                           return (
                             <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
-                              isDarkTheme ? 'bg-[#1f2026] border-[#2c2e35]' : 'bg-[#f7f5ee] border-[#eae6db]'
+                              isDarkTheme ? 'bg-[#221c13] border-[#3d2e1b]' : 'bg-[#fffbeb] border-[#fde68a]'
                             }`}>
                               <div className="flex items-center gap-2">
-                                <ChefHat className={`w-3.5 h-3.5 ${theme.accentColor} shrink-0`} />
+                                <ChefHat className="w-3.5 h-3.5 text-[#ffbe3b] shrink-0" />
                                 <div>
-                                  <span className={`font-medium ${theme.textPrimary}`}>
+                                  <span className="font-bold text-[#ffbe3b]">
                                     👨‍🍳 Заказ готовится на кухне
                                   </span>
                                   {order.statusNote && (
@@ -1517,7 +1525,7 @@ export function App() {
                                 </div>
                               </div>
                               {(cd || order.estimatedTime) && (
-                                <div className="flex items-center gap-1.5 font-mono font-semibold text-xs text-[#c86428] shrink-0">
+                                <div className="flex items-center gap-1.5 font-mono font-bold text-xs text-[#ffbe3b] shrink-0">
                                   <Clock className="w-3.5 h-3.5" />
                                   <span>{cd ? (cd.isArriving ? 'Почти готово' : `~${cd.minutes > 0 ? cd.minutes : 1} мин`) : order.estimatedTime}</span>
                                 </div>
@@ -1528,10 +1536,10 @@ export function App() {
                       ) : (order.estimatedTime || order.statusNote) ? (
                         /* New Order: ETA if assigned */
                         <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
-                          isDarkTheme ? 'bg-[#1f2026] border-[#2c2e35]' : 'bg-[#f7f5ee] border-[#eae6db]'
+                          isDarkTheme ? 'bg-[#14151a] border-[#22242c]' : 'bg-[#f1f2f5] border-[#e5e7eb]'
                         }`}>
                           <div className="flex items-center gap-2">
-                            <Clock className={`w-3.5 h-3.5 ${theme.accentColor} shrink-0`} />
+                            <Clock className="w-3.5 h-3.5 text-[#16ff60] shrink-0" />
                             <div>
                               {order.estimatedTime && (
                                 <span className={`font-medium ${theme.textPrimary}`}>
@@ -1549,62 +1557,60 @@ export function App() {
 
                     {/* Stepper */}
                     {!isCancelled && (
-                      <div className={`p-2.5 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
+                      <div className={`p-3 rounded-2xl border ${theme.subtleBg} ${theme.cardBorder}`}>
                         <div className="relative flex items-center justify-between px-2 pt-1 pb-1">
                           {/* Stepper Track */}
                           <div className="absolute left-[22px] right-[22px] top-[18px] -translate-y-1/2 z-0">
                             {/* Base Track */}
-                            <div className={`w-full h-0.5 ${isDarkTheme ? 'bg-[#2a2c33]' : 'bg-[#e2dfd7]'}`} />
+                            <div className={`w-full h-0.5 ${isDarkTheme ? 'bg-[#22242c]' : 'bg-[#e5e7eb]'}`} />
                             {/* Active Fill Track */}
                             <div 
-                              className={`absolute left-0 top-0 h-0.5 transition-all duration-300 ${
-                                stageIndex >= 4 ? 'bg-[#2b8a3e]' : 'bg-[#c86428]'
-                              }`} 
+                              className="absolute left-0 top-0 h-0.5 transition-all duration-300 bg-[#16ff60]" 
                               style={{ width: `${Math.max(0, Math.min(100, ((stageIndex - 1) / 3) * 100))}%` }}
                             />
                           </div>
 
                           <div className="relative z-10 flex flex-col items-center gap-1">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${
-                              stageIndex >= 1 ? (stageIndex >= 4 ? 'bg-[#2b8a3e] text-white' : 'bg-[#c86428] text-white') : (isDarkTheme ? 'bg-[#22242a] text-[#6c6e75]' : 'bg-[#e6e3da] text-[#797670]')
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                              stageIndex >= 1 ? 'bg-[#16ff60] text-[#0c0d10] shadow-[0_0_10px_rgba(22,255,96,0.4)]' : (isDarkTheme ? 'bg-[#1e2026] text-[#6c6e75]' : 'bg-[#e5e7eb] text-[#797670]')
                             }`}>
-                              <Check className="w-3.5 h-3.5" />
+                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                             </div>
-                            <span className={`text-[10px] ${theme.textMuted}`}>Принят</span>
+                            <span className={`text-[10px] font-medium ${theme.textMuted}`}>Принят</span>
                           </div>
 
                           <div className="relative z-10 flex flex-col items-center gap-1">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${
-                              stageIndex >= 2 ? (stageIndex >= 4 ? 'bg-[#2b8a3e] text-white' : 'bg-[#c86428] text-white') : (isDarkTheme ? 'bg-[#22242a] text-[#6c6e75]' : 'bg-[#e6e3da] text-[#797670]')
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                              stageIndex >= 2 ? 'bg-[#16ff60] text-[#0c0d10] shadow-[0_0_10px_rgba(22,255,96,0.4)]' : (isDarkTheme ? 'bg-[#1e2026] text-[#6c6e75]' : 'bg-[#e5e7eb] text-[#797670]')
                             }`}>
                               <ChefHat className="w-3.5 h-3.5" />
                             </div>
-                            <span className={`text-[10px] ${theme.textMuted}`}>Кухня</span>
+                            <span className={`text-[10px] font-medium ${theme.textMuted}`}>Кухня</span>
                           </div>
 
                           <div className="relative z-10 flex flex-col items-center gap-1">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${
-                              stageIndex >= 3 ? (stageIndex >= 4 ? 'bg-[#2b8a3e] text-white' : 'bg-[#c86428] text-white') : (isDarkTheme ? 'bg-[#22242a] text-[#6c6e75]' : 'bg-[#e6e3da] text-[#797670]')
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                              stageIndex >= 3 ? 'bg-[#16ff60] text-[#0c0d10] shadow-[0_0_10px_rgba(22,255,96,0.4)]' : (isDarkTheme ? 'bg-[#1e2026] text-[#6c6e75]' : 'bg-[#e5e7eb] text-[#797670]')
                             }`}>
                               <Bike className="w-3.5 h-3.5" />
                             </div>
-                            <span className={`text-[10px] ${theme.textMuted}`}>В пути</span>
+                            <span className={`text-[10px] font-medium ${theme.textMuted}`}>В пути</span>
                           </div>
 
                           <div className="relative z-10 flex flex-col items-center gap-1">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${
-                              stageIndex >= 4 ? 'bg-[#2b8a3e] text-white' : (isDarkTheme ? 'bg-[#22242a] text-[#6c6e75]' : 'bg-[#e6e3da] text-[#797670]')
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                              stageIndex >= 4 ? 'bg-[#16ff60] text-[#0c0d10] shadow-[0_0_10px_rgba(22,255,96,0.4)]' : (isDarkTheme ? 'bg-[#1e2026] text-[#6c6e75]' : 'bg-[#e5e7eb] text-[#797670]')
                             }`}>
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             </div>
-                            <span className={`text-[10px] ${theme.textMuted}`}>Доставлен</span>
+                            <span className={`text-[10px] font-medium ${theme.textMuted}`}>Доставлен</span>
                           </div>
                         </div>
                       </div>
                     )}
 
                     {/* Order Items */}
-                    <div className="space-y-1 text-xs">
+                    <div className="space-y-1.5 text-xs">
                       {Array.isArray(order.items) && order.items.map((item, idx) => {
                         const itemPrice = Number(item.price) || 0;
                         const itemQty = Number(item.quantity) || 1;
@@ -1614,29 +1620,29 @@ export function App() {
                         return (
                           <div key={idx} className="flex justify-between items-center text-[11px]">
                             <div className="truncate max-w-[210px]">
-                              <span className={theme.textPrimary}>
+                              <span className={`font-medium ${theme.textPrimary}`}>
                                 {itemQty} × {item.name}
                               </span>
                               {cals && (
-                                <span className={`ml-1.5 text-[9.5px] ${theme.textMuted}`}>
+                                <span className={`ml-1.5 text-[9.5px] font-mono text-[#ff5533]`}>
                                   ({cals} ккал)
                                 </span>
                               )}
                             </div>
-                            <span className={`font-medium ${theme.textMuted}`}>{itemPrice * itemQty} ₽</span>
+                            <span className={`font-mono font-bold ${theme.textMuted}`}>{itemPrice * itemQty} ₽</span>
                           </div>
                         );
                       })}
                     </div>
 
                     {/* Action Buttons */}
-                    <div className={`flex items-center gap-2 pt-2 border-t ${
-                      isDarkTheme ? 'border-[#26282e]' : 'border-[#f0eee9]'
+                    <div className={`flex items-center gap-2 pt-2.5 border-t ${
+                      isDarkTheme ? 'border-[#22242c]' : 'border-[#e5e7eb]'
                     }`}>
                       <button
                         onClick={() => handleRepeatOrder(order)}
-                        className={`flex-1 py-1.5 rounded-lg border font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                          isDarkTheme ? 'border-[#2f323a] hover:bg-[#202227] text-[#c7c6bf]' : 'border-[#dfdbd1] hover:bg-[#f3f0ea] text-[#4f4c46]'
+                        className={`flex-1 py-2 rounded-full border font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
+                          isDarkTheme ? 'border-[#22242c] bg-[#14151a] hover:bg-[#1a1b22] text-[#f4f5f8]' : 'border-[#e5e7eb] bg-[#ffffff] hover:bg-[#f1f2f5] text-[#0c0d10]'
                         }`}
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
@@ -1646,31 +1652,31 @@ export function App() {
                       {orderFilterTab === 'active' ? (
                         <button
                           onClick={(e) => handleArchiveOrder(orderNum, e)}
-                          className={`px-2.5 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
-                            isDarkTheme ? 'border-[#2f323a] hover:bg-[#202227] text-[#c7c6bf]' : 'border-[#dfdbd1] hover:bg-[#f3f0ea] text-[#4f4c46]'
+                          className={`px-3 py-2 rounded-full border font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
+                            isDarkTheme ? 'border-[#22242c] bg-[#14151a] hover:bg-[#1a1b22] text-[#8b8f9e]' : 'border-[#e5e7eb] bg-[#ffffff] hover:bg-[#f1f2f5] text-[#6b7280]'
                           }`}
                           title="Перенести заказ в архив"
                         >
-                          <Archive className="w-3.5 h-3.5 text-[#c86428]" />
+                          <Archive className="w-3.5 h-3.5 text-[#ffaa00]" />
                           <span>В архив</span>
                         </button>
                       ) : (
                         <button
                           onClick={(e) => handleUnarchiveOrder(orderNum, e)}
-                          className={`px-2.5 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
-                            isDarkTheme ? 'border-[#2f323a] hover:bg-[#202227] text-[#c7c6bf]' : 'border-[#dfdbd1] hover:bg-[#f3f0ea] text-[#4f4c46]'
+                          className={`px-3 py-2 rounded-full border font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
+                            isDarkTheme ? 'border-[#22242c] bg-[#14151a] hover:bg-[#1a1b22] text-[#8b8f9e]' : 'border-[#e5e7eb] bg-[#ffffff] hover:bg-[#f1f2f5] text-[#6b7280]'
                           }`}
                           title="Вернуть в активные заказы"
                         >
-                          <ArchiveRestore className="w-3.5 h-3.5 text-[#37b24d]" />
+                          <ArchiveRestore className="w-3.5 h-3.5 text-[#16ff60]" />
                           <span>Вернуть</span>
                         </button>
                       )}
 
                       <button
                         onClick={() => setOrderToDelete(order)}
-                        className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                          isDarkTheme ? 'border-[#26282e] text-[#6c6e75] hover:text-[#e03131]' : 'border-[#eeece7] text-[#a09d96] hover:text-[#d03a3a]'
+                        className={`p-2 rounded-full border transition-all active:scale-95 cursor-pointer ${
+                          isDarkTheme ? 'border-[#22242c] bg-[#14151a] text-[#6b7280] hover:text-[#ff5533]' : 'border-[#e5e7eb] bg-[#ffffff] text-[#9ca3af] hover:text-[#ff5533]'
                         }`}
                         title="Удалить заказ"
                       >
@@ -1696,8 +1702,8 @@ export function App() {
               </p>
             </div>
 
-            <div className={`p-4 rounded-2xl border ${theme.cardBg} ${theme.cardBorder} space-y-2.5`}>
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-[#c86428]">
+            <div className={`p-4 rounded-2xl border ${theme.cardBg} ${theme.cardBorder} space-y-3`}>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#16ff60]">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Ресторан авторской кухни</span>
               </div>
@@ -1709,30 +1715,30 @@ export function App() {
                 href="https://t.me/qqeaux"
                 target="_blank"
                 rel="noreferrer"
-                className={`w-full py-2.5 rounded-xl font-medium text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${theme.accentBg}`}
+                className="w-full py-3 rounded-full font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition-all bg-[#16ff60] text-[#0c0d10] shadow-[0_4px_15px_rgba(22,255,96,0.3)] hover:brightness-105 active:scale-95"
               >
-                <MessageCircle className="w-3.5 h-3.5" />
+                <MessageCircle className="w-4 h-4" />
                 <span>Написать в поддержку (@qqeaux)</span>
               </a>
             </div>
 
-            <div className={`rounded-2xl border p-3.5 space-y-2 ${theme.cardBg} ${theme.cardBorder}`}>
-              <div className={`flex items-center gap-1.5 text-xs font-semibold ${theme.textPrimary}`}>
-                <HelpCircle className="w-4 h-4 text-[#c86428]" />
+            <div className={`rounded-2xl border p-4 space-y-2.5 ${theme.cardBg} ${theme.cardBorder}`}>
+              <div className={`flex items-center gap-1.5 text-xs font-bold ${theme.textPrimary}`}>
+                <HelpCircle className="w-4 h-4 text-[#16ff60]" />
                 <span>Частые вопросы</span>
               </div>
 
-              <div className="space-y-1.5 text-xs">
-                <div className={`p-2.5 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
-                  <div className={`font-medium mb-0.5 ${theme.textPrimary}`}>Как отслеживать статус?</div>
-                  <div className={`text-[11px] ${theme.textMuted}`}>
+              <div className="space-y-2 text-xs">
+                <div className={`p-3 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
+                  <div className={`font-bold mb-0.5 ${theme.textPrimary}`}>Как отслеживать статус?</div>
+                  <div className={`text-[11px] leading-relaxed ${theme.textMuted}`}>
                     Во вкладке «Заказы» отображаются стадии приготовления и расчетное время от шефа.
                   </div>
                 </div>
 
-                <div className={`p-2.5 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
-                  <div className={`font-medium mb-0.5 ${theme.textPrimary}`}>Способ оплаты</div>
-                  <div className={`text-[11px] ${theme.textMuted}`}>
+                <div className={`p-3 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
+                  <div className={`font-bold mb-0.5 ${theme.textPrimary}`}>Способ оплаты</div>
+                  <div className={`text-[11px] leading-relaxed ${theme.textMuted}`}>
                     Оплата происходит при получении курьеру — наличными или банковской картой.
                   </div>
                 </div>
@@ -1742,22 +1748,26 @@ export function App() {
         )}
       </main>
 
-      {/* FIXED BOTTOM NAVIGATION */}
-      <nav className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-lg transition-colors ${
-        isDarkTheme ? 'bg-[#121316]/95 border-[#22242a]' : 'bg-[#faf9f6]/95 border-[#edebe5]'
-      }`}>
-        <div className="max-w-md mx-auto grid grid-cols-4 px-2 py-1.5">
+      {/* MPSTATS FLOATING CAPSULE BOTTOM NAVIGATION */}
+      <div className="fixed bottom-3 left-0 right-0 z-40 flex justify-center px-4 pointer-events-none">
+        <nav className={`pointer-events-auto flex items-center gap-1.5 px-3 py-2 rounded-full border shadow-2xl backdrop-blur-2xl transition-all ${
+          isDarkTheme 
+            ? 'bg-[#14151a]/95 border-[#22242c] shadow-[0_10px_35px_rgba(0,0,0,0.7)]' 
+            : 'bg-[#ffffff]/95 border-[#e5e7eb] shadow-[0_10px_35px_rgba(0,0,0,0.1)]'
+        }`}>
           <button
             onClick={() => {
               triggerHaptic('light');
               setActiveTab('menu');
             }}
-            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
-              activeTab === 'menu' ? (isDarkTheme ? 'text-[#f2f1ec] font-semibold' : 'text-[#1c1b18] font-semibold') : theme.textMuted
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'menu' 
+                ? (isDarkTheme ? 'bg-[#16ff60] text-[#0c0d10] shadow-[0_0_12px_rgba(22,255,96,0.3)]' : 'bg-[#0c0d10] text-[#ffffff]') 
+                : theme.textMuted
             }`}
           >
-            <Utensils className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px]">Меню</span>
+            <Utensils className="w-3.5 h-3.5" />
+            <span>Меню</span>
           </button>
 
           <button
@@ -1765,14 +1775,16 @@ export function App() {
               triggerHaptic('light');
               setActiveTab('orders');
             }}
-            className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
-              activeTab === 'orders' ? (isDarkTheme ? 'text-[#f2f1ec] font-semibold' : 'text-[#1c1b18] font-semibold') : theme.textMuted
+            className={`relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'orders' 
+                ? (isDarkTheme ? 'bg-[#16ff60] text-[#0c0d10] shadow-[0_0_12px_rgba(22,255,96,0.3)]' : 'bg-[#0c0d10] text-[#ffffff]') 
+                : theme.textMuted
             }`}
           >
-            <Package className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px]">Заказы</span>
+            <Package className="w-3.5 h-3.5" />
+            <span>Заказы</span>
             {activeOrders.length > 0 && (
-              <span className="absolute top-1 right-5 w-2 h-2 rounded-full bg-[#c86428]" />
+              <span className="w-2 h-2 rounded-full bg-[#16ff60] animate-pulse" />
             )}
           </button>
 
@@ -1781,12 +1793,14 @@ export function App() {
               triggerHaptic('light');
               setActiveTab('support');
             }}
-            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
-              activeTab === 'support' ? (isDarkTheme ? 'text-[#f2f1ec] font-semibold' : 'text-[#1c1b18] font-semibold') : theme.textMuted
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'support' 
+                ? (isDarkTheme ? 'bg-[#16ff60] text-[#0c0d10] shadow-[0_0_12px_rgba(22,255,96,0.3)]' : 'bg-[#0c0d10] text-[#ffffff]') 
+                : theme.textMuted
             }`}
           >
-            <HelpCircle className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px]">Инфо</span>
+            <HelpCircle className="w-3.5 h-3.5" />
+            <span>Инфо</span>
           </button>
 
           <button
@@ -1794,13 +1808,21 @@ export function App() {
               triggerHaptic('light');
               setIsCartOpen(true);
             }}
-            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${theme.textMuted}`}
+            className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${
+              isDarkTheme 
+                ? 'bg-[#1a1b22] border-[#262832] text-[#f4f5f8] hover:border-[#16ff60]/50' 
+                : 'bg-[#f1f2f5] border-[#e5e7eb] text-[#0c0d10]'
+            }`}
           >
-            <ShoppingBag className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px]">Корзина</span>
+            <ShoppingBag className="w-3.5 h-3.5" />
+            {totalItemsCount > 0 && (
+              <span className="bg-[#16ff60] text-[#0c0d10] text-[10px] font-black rounded-full px-1.5 py-0.2 min-w-4 text-center">
+                {totalItemsCount}
+              </span>
+            )}
           </button>
-        </div>
-      </nav>
+        </nav>
+      </div>
 
       {/* PRODUCT DETAIL MODAL */}
       {selectedProduct && (() => {
@@ -1813,12 +1835,12 @@ export function App() {
         const isAvail = currentProduct.isAvailable !== false;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs">
-            <div className={`w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[88vh] flex flex-col overflow-hidden border shadow-xl ${
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
+            <div className={`w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col overflow-hidden border shadow-2xl ${
               theme.cardBg
             } ${theme.cardBorder}`}>
               
-              <div className="relative aspect-16/9 w-full bg-[#1b1c20] overflow-hidden shrink-0">
+              <div className="relative aspect-16/9 w-full bg-[#1a1b22] overflow-hidden shrink-0">
                 <img 
                   src={currentProduct.image} 
                   alt={currentProduct.name} 
@@ -1826,88 +1848,98 @@ export function App() {
                 />
                 <button
                   onClick={() => setSelectedProduct(null)}
-                  className="absolute top-3 right-3 p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 transition-transform active:scale-95 cursor-pointer"
+                  className="absolute top-3.5 right-3.5 p-2 rounded-full bg-black/60 text-white backdrop-blur-md hover:bg-black/80 transition-transform active:scale-95 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
 
-                <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5">
+                <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
                   {!isAvail ? (
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-[#bd3a2e] text-white">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-[#bd3a2e] text-white">
                       Стоп-лист
                     </span>
                   ) : currentProduct.badge ? (
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-[#141518]/85 text-white">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-[#0c0d10]/90 text-[#16ff60] border border-[#16ff60]/40 backdrop-blur-md">
                       {currentProduct.badge}
                     </span>
                   ) : null}
                   {currentProduct.weight && (
-                    <span className="px-2 py-0.5 rounded text-xs text-white/90 bg-black/50">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold text-white/90 bg-black/60 backdrop-blur-md border border-white/10">
                       {currentProduct.weight}
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="p-4 overflow-y-auto space-y-3.5">
+              <div className="p-4 overflow-y-auto space-y-4">
                 <div>
-                  <h2 className={`text-base font-semibold tracking-tight ${theme.textPrimary}`}>{currentProduct.name}</h2>
-                  <p className={`text-xs mt-1 leading-relaxed ${theme.textMuted}`}>
+                  <h2 className={`text-lg font-black tracking-tight ${theme.textPrimary}`}>{currentProduct.name}</h2>
+                  <p className={`text-xs mt-1.5 leading-relaxed ${theme.textMuted}`}>
                     {currentProduct.description}
                   </p>
                 </div>
 
-                {/* KBJU Grid */}
-                <div className={`p-3 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
-                  <div className={`text-[10px] font-medium uppercase tracking-wider mb-2 flex justify-between ${theme.textMuted}`}>
-                    <span>Энергетическая ценность</span>
-                    <span>на всю порцию {currentProduct.weight ? `(${currentProduct.weight})` : ''}</span>
+                {/* Analytical KBJU Bento Grid */}
+                <div className={`p-3.5 rounded-2xl border ${theme.subtleBg} ${theme.cardBorder}`}>
+                  <div className={`text-[10px] font-bold uppercase tracking-wider mb-2.5 flex justify-between ${theme.textMuted}`}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#16ff60]" /> 
+                      Энергетический баланс
+                    </span>
+                    <span className="font-mono text-[10px]">{currentProduct.weight ? currentProduct.weight : 'на 1 порцию'}</span>
                   </div>
 
                   <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                    <div className={`p-1.5 rounded-lg ${isDarkTheme ? 'bg-[#202126]' : 'bg-[#e9e6df]'}`}>
-                      <div className="font-semibold text-[#c86428]">{curCal}</div>
-                      <div className={`text-[10px] ${theme.textMuted}`}>ккал</div>
+                    <div className={`p-2 rounded-xl border flex flex-col justify-center ${isDarkTheme ? 'bg-[#14151a] border-[#22242c]' : 'bg-[#ffffff] border-[#e5e7eb]'}`}>
+                      <div className="font-black text-sm text-[#ff5533]">{curCal}</div>
+                      <div className={`text-[10px] font-medium ${theme.textMuted}`}>ккал</div>
                     </div>
-                    <div className={`p-1.5 rounded-lg ${isDarkTheme ? 'bg-[#202126]' : 'bg-[#e9e6df]'}`}>
-                      <div className="font-semibold">{curProt} г</div>
-                      <div className={`text-[10px] ${theme.textMuted}`}>белки</div>
+                    <div className={`p-2 rounded-xl border flex flex-col justify-center ${isDarkTheme ? 'bg-[#14151a] border-[#22242c]' : 'bg-[#ffffff] border-[#e5e7eb]'}`}>
+                      <div className="font-bold text-xs">{curProt} г</div>
+                      <div className={`text-[10px] font-medium ${theme.textMuted}`}>белки</div>
                     </div>
-                    <div className={`p-1.5 rounded-lg ${isDarkTheme ? 'bg-[#202126]' : 'bg-[#e9e6df]'}`}>
-                      <div className="font-semibold">{curFat} г</div>
-                      <div className={`text-[10px] ${theme.textMuted}`}>жиры</div>
+                    <div className={`p-2 rounded-xl border flex flex-col justify-center ${isDarkTheme ? 'bg-[#14151a] border-[#22242c]' : 'bg-[#ffffff] border-[#e5e7eb]'}`}>
+                      <div className="font-bold text-xs">{curFat} г</div>
+                      <div className={`text-[10px] font-medium ${theme.textMuted}`}>жиры</div>
                     </div>
-                    <div className={`p-1.5 rounded-lg ${isDarkTheme ? 'bg-[#202126]' : 'bg-[#e9e6df]'}`}>
-                      <div className="font-semibold">{curCarb} г</div>
-                      <div className={`text-[10px] ${theme.textMuted}`}>углеводы</div>
+                    <div className={`p-2 rounded-xl border flex flex-col justify-center ${isDarkTheme ? 'bg-[#14151a] border-[#22242c]' : 'bg-[#ffffff] border-[#e5e7eb]'}`}>
+                      <div className="font-bold text-xs">{curCarb} г</div>
+                      <div className={`text-[10px] font-medium ${theme.textMuted}`}>углеводы</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Ingredients */}
                 {currentProduct.ingredients && currentProduct.ingredients.length > 0 && (
-                  <div className="space-y-1">
-                    <div className={`text-xs font-semibold ${theme.textMuted}`}>Состав</div>
-                    <ul className={`text-xs space-y-0.5 p-2.5 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
-                      {currentProduct.ingredients.map((ing, i) => (
-                        <li key={i} className={`flex items-center gap-1.5 text-[11px] ${theme.textPrimary}`}>
-                          <span className="w-1 h-1 rounded-full bg-[#c86428]" />
-                          <span>{ing}</span>
-                        </li>
-                      ))}
-                    </ul>
+                  <div className="space-y-1.5">
+                    <div className={`text-xs font-bold ${theme.textMuted}`}>Состав и аллергены</div>
+                    <div className={`p-3 rounded-2xl border ${theme.subtleBg} ${theme.cardBorder}`}>
+                      <div className="flex flex-wrap gap-1.5">
+                        {currentProduct.ingredients.map((ing, i) => (
+                          <span 
+                            key={i} 
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
+                              isDarkTheme ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8]' : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10]'
+                            }`}
+                          >
+                            <span className="w-1 h-1 rounded-full bg-[#16ff60]" />
+                            <span>{ing}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* Modal Footer */}
-              <div className={`p-3.5 border-t flex items-center justify-between gap-3 ${
-                isDarkTheme ? 'border-[#26282e] bg-[#17181c]' : 'border-[#eeece7] bg-[#f8f7f3]'
+              <div className={`p-4 border-t flex items-center justify-between gap-4 ${
+                isDarkTheme ? 'border-[#22242c] bg-[#0c0d10]' : 'border-[#e5e7eb] bg-[#f7f8fa]'
               }`}>
                 <div>
-                  <div className={`text-[10px] ${theme.textMuted}`}>Стоимость:</div>
+                  <div className={`text-[10px] font-medium ${theme.textMuted}`}>Стоимость:</div>
                   <div className="flex items-baseline gap-2">
-                    <div className={`text-base font-semibold ${theme.textPrimary}`}>
+                    <div className={`text-xl font-black tabular-nums ${theme.textPrimary}`}>
                       {currentProduct.price} ₽
                     </div>
                     {Boolean(currentProduct.oldPrice && Number(currentProduct.oldPrice) > Number(currentProduct.price)) && (
@@ -1920,33 +1952,33 @@ export function App() {
 
                 <div>
                   {!isAvail ? (
-                    <span className={`px-4 py-2 rounded-xl text-xs font-medium ${theme.subtleBg} ${theme.textMuted}`}>
+                    <span className={`px-4 py-2.5 rounded-full text-xs font-bold ${theme.subtleBg} ${theme.textMuted}`}>
                       Недоступно
                     </span>
                   ) : (cart[currentProduct.id] || 0) > 0 ? (
-                    <div className={`flex items-center gap-1.5 rounded-xl p-1 ${theme.accentBg}`}>
+                    <div className="flex items-center gap-2 rounded-full p-1 bg-[#16ff60] text-[#0c0d10] font-black shadow-[0_0_15px_rgba(22,255,96,0.35)]">
                       <button 
                         onClick={() => removeFromCart(currentProduct.id)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer"
+                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/10 active:scale-90 transition-transform cursor-pointer"
                       >
-                        <Minus className="w-3.5 h-3.5" />
+                        <Minus className="w-4 h-4 stroke-[2.5]" />
                       </button>
-                      <span className="text-xs font-semibold px-2 text-center">
+                      <span className="text-sm font-black px-2 text-center">
                         {cart[currentProduct.id]}
                       </span>
                       <button 
                         onClick={() => addToCart(currentProduct.id)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer"
+                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/10 active:scale-90 transition-transform cursor-pointer"
                       >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Plus className="w-4 h-4 stroke-[2.5]" />
                       </button>
                     </div>
                   ) : (
                     <button
                       onClick={() => addToCart(currentProduct.id)}
-                      className={`px-5 py-2.5 rounded-xl font-medium text-xs transition-colors flex items-center gap-1.5 cursor-pointer ${theme.accentBg}`}
+                      className="px-6 py-2.5 rounded-full font-black text-xs transition-all active:scale-95 flex items-center gap-2 cursor-pointer bg-[#16ff60] text-[#0c0d10] shadow-[0_4px_15px_rgba(22,255,96,0.35)] hover:brightness-105"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
                       <span>В корзину</span>
                     </button>
                   )}
@@ -1959,47 +1991,50 @@ export function App() {
 
       {/* CART & CHECKOUT DRAWER */}
       {isCartOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm">
           <div className={`w-full max-w-md h-full flex flex-col justify-between border-l ${theme.cardBg} ${theme.cardBorder}`}>
-            <div className={`p-3.5 border-b flex items-center justify-between ${
-              isDarkTheme ? 'border-[#26282e]' : 'border-[#eeece7]'
+            <div className={`p-4 border-b flex items-center justify-between ${
+              isDarkTheme ? 'border-[#22242c]' : 'border-[#e5e7eb]'
             }`}>
-              <div className="flex items-center gap-2 font-semibold text-xs">
-                <ShoppingBag className="w-4 h-4 text-[#c86428]" />
-                <span>Корзина ({totalItemsCount})</span>
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <ShoppingBag className="w-4 h-4 text-[#16ff60]" />
+                <span>Корзина заказа</span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-[#16ff60] text-[#0c0d10]">
+                  {totalItemsCount}
+                </span>
               </div>
               <button 
                 onClick={() => setIsCartOpen(false)}
-                className={`p-1 rounded-lg ${theme.textMuted} cursor-pointer`}
+                className={`p-1.5 rounded-full ${theme.subtleBg} ${theme.textMuted} hover:text-white cursor-pointer`}
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
               {cartItems.length === 0 ? (
-                <div className="text-center py-16 space-y-2">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto ${theme.subtleBg} ${theme.textMuted}`}>
-                    <ShoppingBag className="w-5 h-5" />
+                <div className="text-center py-20 space-y-2">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${theme.subtleBg} ${theme.textMuted}`}>
+                    <ShoppingBag className="w-6 h-6" />
                   </div>
-                  <div className={`text-xs font-semibold ${theme.textPrimary}`}>Корзина пуста</div>
-                  <p className={`text-[11px] ${theme.textMuted}`}>Выберите понравившиеся блюда</p>
+                  <div className={`text-sm font-bold ${theme.textPrimary}`}>Корзина пуста</div>
+                  <p className={`text-xs ${theme.textMuted}`}>Выберите блюда в меню, чтобы сделать заказ</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {cartItems.map(item => (
                     <div 
                       key={item.product.id}
-                      className={`flex items-center justify-between p-2 rounded-xl border text-xs ${theme.subtleBg} ${theme.cardBorder}`}
+                      className={`flex items-center justify-between p-2.5 rounded-2xl border text-xs ${theme.subtleBg} ${theme.cardBorder}`}
                     >
-                      <div className="flex items-center gap-2 truncate max-w-[190px]">
-                        <img src={item.product.image} alt={item.product.name} className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                      <div className="flex items-center gap-2.5 truncate max-w-[200px]">
+                        <img src={item.product.image} alt={item.product.name} className="w-10 h-10 rounded-xl object-cover shrink-0" />
                         <div className="truncate">
-                          <div className={`font-medium truncate ${theme.textPrimary}`}>{item.product.name}</div>
-                          <div className="flex items-center gap-1.5 text-[11px]">
-                            <span className="text-[#c86428] font-semibold">{item.product.price} ₽</span>
+                          <div className={`font-bold truncate ${theme.textPrimary}`}>{item.product.name}</div>
+                          <div className="flex items-center gap-1.5 text-[11px] mt-0.5">
+                            <span className="text-[#16ff60] font-black">{item.product.price} ₽</span>
                             {Boolean(item.product.calories) && (
-                              <span className={`text-[10px] ${theme.textMuted}`}>
+                              <span className={`text-[10px] font-mono ${theme.textMuted}`}>
                                 • {(item.product.calories || 0) * item.quantity} ккал
                               </span>
                             )}
@@ -2007,19 +2042,19 @@ export function App() {
                         </div>
                       </div>
 
-                      <div className={`flex items-center gap-1 rounded-lg p-0.5 ${theme.accentBg}`}>
+                      <div className="flex items-center gap-1 rounded-full p-0.5 bg-[#16ff60] text-[#0c0d10] font-bold">
                         <button 
                           onClick={() => removeFromCart(item.product.id)}
-                          className="w-5 h-5 rounded flex items-center justify-center cursor-pointer"
+                          className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/10 active:scale-90 transition-transform cursor-pointer"
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-3 h-3 stroke-[2.5]" />
                         </button>
-                        <span className="text-xs font-semibold px-1 text-center">{item.quantity}</span>
+                        <span className="text-xs font-black px-1.5 text-center">{item.quantity}</span>
                         <button 
                           onClick={() => addToCart(item.product.id)}
-                          className="w-5 h-5 rounded flex items-center justify-center cursor-pointer"
+                          className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/10 active:scale-90 transition-transform cursor-pointer"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3 h-3 stroke-[2.5]" />
                         </button>
                       </div>
                     </div>
@@ -2027,21 +2062,21 @@ export function App() {
                 </div>
               )}
 
-              {/* Total Cart KBJU */}
+              {/* Total Cart KBJU Widget */}
               {cartItems.length > 0 && cartTotalKbju.cals > 0 && (
-                <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
-                  isDarkTheme ? 'bg-[#1e1f24] border-[#292b32]' : 'bg-[#f4f2ec] border-[#e7e4dc]'
+                <div className={`p-3 rounded-2xl border flex items-center justify-between text-xs ${
+                  isDarkTheme ? 'bg-[#14151a] border-[#22242c]' : 'bg-[#f1f2f5] border-[#e5e7eb]'
                 }`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">⚡</span>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base text-[#ff5533]">⚡</span>
                     <div>
-                      <div className={`font-medium text-[11px] ${theme.textPrimary}`}>КБЖУ всего заказа</div>
-                      <div className={`text-[10px] ${theme.textMuted}`}>
+                      <div className={`font-bold text-xs ${theme.textPrimary}`}>КБЖУ всего заказа</div>
+                      <div className={`text-[10px] font-mono mt-0.5 ${theme.textMuted}`}>
                         Б: {cartTotalKbju.p}г • Ж: {cartTotalKbju.f}г • У: {cartTotalKbju.c}г
                       </div>
                     </div>
                   </div>
-                  <div className="font-semibold text-xs text-[#c86428]">
+                  <div className="font-black text-sm text-[#ff5533] tabular-nums">
                     {cartTotalKbju.cals} ккал
                   </div>
                 </div>
@@ -2050,35 +2085,35 @@ export function App() {
               {/* Promocode */}
               {cartItems.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-2">
                     <input
                       type="text"
                       value={promoCodeInput}
                       onChange={e => setPromoCodeInput(e.target.value)}
                       placeholder="Промокод (VIBE20)"
-                      className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs uppercase border focus:outline-none ${
+                      className={`flex-1 px-3 py-2 rounded-full text-xs font-bold uppercase border focus:outline-none transition-all ${
                         isDarkTheme 
-                          ? 'bg-[#1b1c20] border-[#26282e] text-[#f2f1ec] placeholder:text-[#6c6e75]' 
-                          : 'bg-[#ffffff] border-[#eeece7] text-[#1c1b18] placeholder:text-[#a09d96]'
+                          ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8] placeholder:text-[#6b7280] focus:border-[#16ff60]' 
+                          : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10] placeholder:text-[#9ca3af] focus:border-black'
                       }`}
                     />
                     <button
                       type="button"
                       onClick={handleApplyPromo}
-                      className={`px-3 py-1.5 rounded-lg font-medium text-xs cursor-pointer ${theme.accentBg}`}
+                      className="px-4 py-2 rounded-full font-black text-xs cursor-pointer bg-[#16ff60] text-[#0c0d10] active:scale-95 transition-transform"
                     >
                       Применить
                     </button>
                   </div>
-                  {appliedPromo && <div className="text-[11px] text-[#2b8a3e] font-medium">Промокод {appliedPromo.code} применен!</div>}
-                  {promoError && <div className="text-[11px] text-[#bd3a2e] font-medium">{promoError}</div>}
+                  {appliedPromo && <div className="text-[11px] text-[#16ff60] font-bold">Промокод {appliedPromo.code} применен!</div>}
+                  {promoError && <div className="text-[11px] text-[#ff5533] font-bold">{promoError}</div>}
                 </div>
               )}
 
               {/* Checkout Form */}
               {cartItems.length > 0 && (
                 <form id="order-form" onSubmit={handleSubmitOrder} className="space-y-2.5 pt-2">
-                  <div className={`text-[10px] font-medium uppercase ${theme.textMuted}`}>Куда и кому доставить:</div>
+                  <div className={`text-[10px] font-bold uppercase tracking-wider ${theme.textMuted}`}>Данные доставки:</div>
                   
                   <div>
                     <input
@@ -2086,11 +2121,11 @@ export function App() {
                       value={customerName}
                       onChange={e => setCustomerName(e.target.value)}
                       placeholder="Имя и Фамилия"
-                      className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
-                        isDarkTheme ? 'bg-[#1b1c20] border-[#26282e] text-[#f2f1ec]' : 'bg-[#ffffff] border-[#eeece7] text-[#1c1b18]'
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none transition-all ${
+                        isDarkTheme ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8] focus:border-[#16ff60]' : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10] focus:border-black'
                       }`}
                     />
-                    {formErrors.customerName && <div className="text-[10px] text-[#bd3a2e] mt-0.5">{formErrors.customerName}</div>}
+                    {formErrors.customerName && <div className="text-[10px] text-[#ff5533] mt-0.5 font-medium">{formErrors.customerName}</div>}
                   </div>
 
                   <div>
@@ -2099,11 +2134,11 @@ export function App() {
                       value={phone}
                       onChange={e => setPhone(formatRussianPhone(e.target.value))}
                       placeholder="+7 (9XX) XXX-XX-XX"
-                      className={`w-full px-3 py-2 rounded-xl text-xs font-mono border focus:outline-none ${
-                        isDarkTheme ? 'bg-[#1b1c20] border-[#26282e] text-[#f2f1ec]' : 'bg-[#ffffff] border-[#eeece7] text-[#1c1b18]'
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-mono border focus:outline-none transition-all ${
+                        isDarkTheme ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8] focus:border-[#16ff60]' : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10] focus:border-black'
                       }`}
                     />
-                    {formErrors.phone && <div className="text-[10px] text-[#bd3a2e] mt-0.5">{formErrors.phone}</div>}
+                    {formErrors.phone && <div className="text-[10px] text-[#ff5533] mt-0.5 font-medium">{formErrors.phone}</div>}
                   </div>
 
                   <div>
@@ -2112,11 +2147,11 @@ export function App() {
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       placeholder="Email для электронного чека"
-                      className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
-                        isDarkTheme ? 'bg-[#1b1c20] border-[#26282e] text-[#f2f1ec]' : 'bg-[#ffffff] border-[#eeece7] text-[#1c1b18]'
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none transition-all ${
+                        isDarkTheme ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8] focus:border-[#16ff60]' : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10] focus:border-black'
                       }`}
                     />
-                    {formErrors.email && <div className="text-[10px] text-[#bd3a2e] mt-0.5">{formErrors.email}</div>}
+                    {formErrors.email && <div className="text-[10px] text-[#ff5533] mt-0.5 font-medium">{formErrors.email}</div>}
                   </div>
 
                   <div>
@@ -2125,11 +2160,11 @@ export function App() {
                       value={address}
                       onChange={e => setAddress(e.target.value)}
                       placeholder="Адрес (город, улица, дом, кв)"
-                      className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
-                        isDarkTheme ? 'bg-[#1b1c20] border-[#26282e] text-[#f2f1ec]' : 'bg-[#ffffff] border-[#eeece7] text-[#1c1b18]'
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none transition-all ${
+                        isDarkTheme ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8] focus:border-[#16ff60]' : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10] focus:border-black'
                       }`}
                     />
-                    {formErrors.address && <div className="text-[10px] text-[#bd3a2e] mt-0.5">{formErrors.address}</div>}
+                    {formErrors.address && <div className="text-[10px] text-[#ff5533] mt-0.5 font-medium">{formErrors.address}</div>}
                   </div>
 
                   <div>
@@ -2138,14 +2173,14 @@ export function App() {
                       value={comment}
                       onChange={e => setComment(e.target.value)}
                       placeholder="Пожелание курьеру (этаж, домофон)"
-                      className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none ${
-                        isDarkTheme ? 'bg-[#1b1c20] border-[#26282e] text-[#f2f1ec]' : 'bg-[#ffffff] border-[#eeece7] text-[#1c1b18]'
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs border focus:outline-none transition-all ${
+                        isDarkTheme ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8] focus:border-[#16ff60]' : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10] focus:border-black'
                       }`}
                     />
                   </div>
 
-                  <div className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs ${theme.subtleBg} ${theme.cardBorder}`}>
-                    <Banknote className="w-4 h-4 text-[#2b8a3e] shrink-0" />
+                  <div className={`p-3 rounded-2xl border flex items-center gap-2.5 text-xs ${theme.subtleBg} ${theme.cardBorder}`}>
+                    <Banknote className="w-4 h-4 text-[#16ff60] shrink-0" />
                     <span className={theme.textPrimary}>Оплата при получении курьеру (наличные или карта)</span>
                   </div>
                 </form>
@@ -2153,18 +2188,18 @@ export function App() {
             </div>
 
             {cartItems.length > 0 && (
-              <div className={`p-3.5 border-t space-y-2.5 ${
-                isDarkTheme ? 'border-[#26282e] bg-[#141518]' : 'border-[#eeece7] bg-[#f8f7f4]'
+              <div className={`p-4 border-t space-y-3 ${
+                isDarkTheme ? 'border-[#22242c] bg-[#0c0d10]' : 'border-[#e5e7eb] bg-[#f7f8fa]'
               }`}>
-                <div className="flex justify-between items-center text-sm font-semibold">
+                <div className="flex justify-between items-center text-sm font-bold">
                   <span>Итого к оплате:</span>
-                  <span className="text-[#c86428] text-base">{totalPrice} ₽</span>
+                  <span className="text-[#16ff60] text-lg font-black tabular-nums">{totalPrice} ₽</span>
                 </div>
 
                 <button
                   type="submit"
                   form="order-form"
-                  className={`w-full py-3 rounded-xl font-medium text-xs transition-colors cursor-pointer ${theme.accentBg}`}
+                  className="w-full py-3.5 rounded-full font-black text-sm transition-all active:scale-98 cursor-pointer bg-[#16ff60] text-[#0c0d10] shadow-[0_4px_20px_rgba(22,255,96,0.35)] hover:brightness-105"
                 >
                   Оформить заказ ({totalPrice} ₽)
                 </button>
@@ -2176,14 +2211,14 @@ export function App() {
 
       {/* ORDER SUCCESS MODAL */}
       {orderSuccess && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className={`w-full max-w-xs rounded-2xl p-5 border text-center space-y-3 ${theme.cardBg} ${theme.cardBorder}`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto ${theme.subtleBg} text-[#2b8a3e]`}>
-              <CheckCircle2 className="w-6 h-6" />
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className={`w-full max-w-xs rounded-3xl p-6 border text-center space-y-4 shadow-2xl ${theme.cardBg} ${theme.cardBorder}`}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto bg-[#16ff60]/15 text-[#16ff60] border border-[#16ff60]/30 shadow-[0_0_15px_rgba(22,255,96,0.3)]">
+              <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
             </div>
             <div>
-              <h2 className={`text-sm font-semibold ${theme.textPrimary}`}>Заказ #{orderSuccess.orderNumber} принят!</h2>
-              <p className={`text-[11px] mt-0.5 ${theme.textMuted}`}>
+              <h2 className={`text-base font-black tracking-tight ${theme.textPrimary}`}>Заказ #{orderSuccess.orderNumber} принят!</h2>
+              <p className={`text-xs mt-1 leading-relaxed ${theme.textMuted}`}>
                 Шеф-повар уже готовит блюда. Вы можете следить за статусом во вкладке «Заказы».
               </p>
             </div>
@@ -2194,7 +2229,7 @@ export function App() {
                 setOrderSuccess(null);
                 setActiveTab('orders');
               }}
-              className={`w-full py-2.5 rounded-xl font-medium text-xs cursor-pointer ${theme.accentBg}`}
+              className="w-full py-3 rounded-full font-black text-xs cursor-pointer bg-[#16ff60] text-[#0c0d10] shadow-[0_4px_15px_rgba(22,255,96,0.3)] hover:brightness-105 active:scale-95 transition-all"
             >
               Перейти к заказам
             </button>
@@ -2204,22 +2239,22 @@ export function App() {
 
       {/* SINGLE ORDER DELETE MODAL */}
       {orderToDelete && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className={`w-full max-w-xs rounded-2xl p-4 border text-center space-y-3 ${theme.cardBg} ${theme.cardBorder}`}>
-            <h3 className={`text-xs font-semibold ${theme.textPrimary}`}>
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className={`w-full max-w-xs rounded-3xl p-5 border text-center space-y-3.5 shadow-2xl ${theme.cardBg} ${theme.cardBorder}`}>
+            <h3 className={`text-sm font-bold ${theme.textPrimary}`}>
               Удалить заказ #{orderToDelete.orderNumber || (orderToDelete as any).order_number}?
             </h3>
-            <p className={`text-[11px] ${theme.textMuted}`}>Заказ будет удален из списка и базы данных.</p>
+            <p className={`text-xs ${theme.textMuted}`}>Заказ будет безвозвратно удален из списка и базы данных.</p>
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => setOrderToDelete(null)}
-                className={`flex-1 py-1.5 rounded-lg border text-xs font-medium cursor-pointer ${theme.cardBorder} ${theme.textMuted}`}
+                className={`flex-1 py-2.5 rounded-full border text-xs font-bold cursor-pointer transition-all active:scale-95 ${theme.cardBorder} ${theme.textMuted} hover:border-[#383d4a]`}
               >
                 Отмена
               </button>
               <button
                 onClick={confirmDeleteOrder}
-                className="flex-1 py-1.5 rounded-lg bg-[#bd3a2e] text-white text-xs font-medium cursor-pointer"
+                className="flex-1 py-2.5 rounded-full bg-[#ff5533] text-white text-xs font-bold cursor-pointer shadow-[0_2px_10px_rgba(255,85,51,0.3)] hover:brightness-105 active:scale-95 transition-all"
               >
                 Удалить
               </button>
