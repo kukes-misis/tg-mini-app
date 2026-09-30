@@ -325,7 +325,11 @@ async def handle_get_products(request):
                 "badge": p.get("badge"),
                 "description": p.get("description"),
                 "weight": p.get("weight"),
-                "image": p.get("image")
+                "image": p.get("image"),
+                "calories": p.get("calories"),
+                "proteins": p.get("proteins"),
+                "fats": p.get("fats"),
+                "carbs": p.get("carbs")
             })
         return web.json_response(formatted, headers={
             "Access-Control-Allow-Origin": "*",

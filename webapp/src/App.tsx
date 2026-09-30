@@ -326,10 +326,27 @@ export function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.map((p: any) => ({
-            ...p,
-            oldPrice: p.oldPrice && Number(p.oldPrice) > Number(p.price) ? Number(p.oldPrice) : undefined
-          }));
+          return INITIAL_PRODUCTS.map(ip => {
+            const sp = parsed.find((p: any) => p.id === ip.id);
+            if (sp) {
+              const finalPrice = typeof sp.price === 'number' ? sp.price : ip.price;
+              const cleanOld = sp.oldPrice && Number(sp.oldPrice) > Number(finalPrice) ? Number(sp.oldPrice) : ip.oldPrice;
+              return {
+                ...ip,
+                price: finalPrice,
+                oldPrice: cleanOld,
+                isAvailable: sp.isAvailable !== undefined ? Boolean(sp.isAvailable) : ip.isAvailable,
+                calories: sp.calories ?? ip.calories,
+                proteins: sp.proteins ?? ip.proteins,
+                fats: sp.fats ?? ip.fats,
+                carbs: sp.carbs ?? ip.carbs,
+                ingredients: sp.ingredients?.length ? sp.ingredients : ip.ingredients,
+                description: sp.description || ip.description,
+                weight: sp.weight || ip.weight
+              };
+            }
+            return ip;
+          });
         }
       } catch { /* ignore */ }
     }
@@ -613,16 +630,22 @@ export function App() {
           if (Array.isArray(serverProducts) && serverProducts.length > 0) {
             setProducts(prev => {
               const updated = prev.map(p => {
-                const sp = serverProducts.find((s: { id: string; price?: number; isAvailable?: boolean; is_available?: number; oldPrice?: number; old_price?: number }) => s.id === p.id);
+                const sp = serverProducts.find((s: any) => s.id === p.id);
+                const ip = INITIAL_PRODUCTS.find(i => i.id === p.id);
                 if (sp) {
                   const finalPrice = typeof sp.price === 'number' ? sp.price : p.price;
                   const rawOld = sp.oldPrice ?? sp.old_price;
                   const cleanOld = rawOld && Number(rawOld) > Number(finalPrice) ? Number(rawOld) : undefined;
                   return {
+                    ...ip,
                     ...p,
                     price: finalPrice,
                     isAvailable: sp.isAvailable !== undefined ? Boolean(sp.isAvailable) : (sp.is_available !== undefined ? Boolean(sp.is_available) : p.isAvailable),
-                    oldPrice: cleanOld
+                    oldPrice: cleanOld,
+                    calories: sp.calories ?? p.calories ?? ip?.calories,
+                    proteins: sp.proteins ?? p.proteins ?? ip?.proteins,
+                    fats: sp.fats ?? p.fats ?? ip?.fats,
+                    carbs: sp.carbs ?? p.carbs ?? ip?.carbs
                   };
                 }
                 return p;
@@ -702,6 +725,22 @@ export function App() {
 
   const subtotalPrice = useMemo(() => {
     return cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+  }, [cartItems]);
+
+  const cartTotalKbju = useMemo(() => {
+    let cals = 0, p = 0, f = 0, c = 0;
+    cartItems.forEach(item => {
+      const im = INITIAL_PRODUCTS.find(x => x.id === item.product.id);
+      const cal = item.product.calories ?? im?.calories ?? 0;
+      const prot = item.product.proteins ?? im?.proteins ?? 0;
+      const fat = item.product.fats ?? im?.fats ?? 0;
+      const carb = item.product.carbs ?? im?.carbs ?? 0;
+      cals += cal * item.quantity;
+      p += prot * item.quantity;
+      f += fat * item.quantity;
+      c += carb * item.quantity;
+    });
+    return { cals, p, f, c };
   }, [cartItems]);
 
   useEffect(() => {
@@ -1208,9 +1247,23 @@ export function App() {
                         <h3 className={`text-xs font-semibold tracking-tight line-clamp-1 mb-0.5 ${theme.textPrimary}`}>
                           {product.name}
                         </h3>
-                        <p className={`text-[11px] line-clamp-2 leading-relaxed mb-2.5 ${theme.textMuted}`}>
+                        <p className={`text-[11px] line-clamp-2 leading-relaxed mb-1.5 ${theme.textMuted}`}>
                           {product.description}
                         </p>
+
+                        {/* KBJU Info Badge */}
+                        {Boolean(product.calories) && (
+                          <div className={`inline-flex items-center gap-1.5 text-[10px] mb-2 px-1.5 py-0.5 rounded-md font-medium tracking-tight ${
+                            isDarkTheme ? 'bg-[#222328] text-[#c2c4cb]' : 'bg-[#eeece7] text-[#4f4c46]'
+                          }`}>
+                            <span className="font-semibold text-[#c86428]">{product.calories} ккал</span>
+                            {Boolean(product.proteins || product.fats || product.carbs) && (
+                              <span className="opacity-75">
+                                • БЖУ {product.proteins || 0}/{product.fats || 0}/{product.carbs || 0}г
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Price & Add Action */}
@@ -1555,11 +1608,21 @@ export function App() {
                       {Array.isArray(order.items) && order.items.map((item, idx) => {
                         const itemPrice = Number(item.price) || 0;
                         const itemQty = Number(item.quantity) || 1;
+                        const pMatch = INITIAL_PRODUCTS.find(p => p.id === item.id || p.name === item.name);
+                        const cals = pMatch?.calories ? pMatch.calories * itemQty : null;
+
                         return (
                           <div key={idx} className="flex justify-between items-center text-[11px]">
-                            <span className={`truncate max-w-[220px] ${theme.textPrimary}`}>
-                              {itemQty} × {item.name}
-                            </span>
+                            <div className="truncate max-w-[210px]">
+                              <span className={theme.textPrimary}>
+                                {itemQty} × {item.name}
+                              </span>
+                              {cals && (
+                                <span className={`ml-1.5 text-[9.5px] ${theme.textMuted}`}>
+                                  ({cals} ккал)
+                                </span>
+                              )}
+                            </div>
                             <span className={`font-medium ${theme.textMuted}`}>{itemPrice * itemQty} ₽</span>
                           </div>
                         );
@@ -1742,6 +1805,11 @@ export function App() {
       {/* PRODUCT DETAIL MODAL */}
       {selectedProduct && (() => {
         const currentProduct = products.find(p => p.id === selectedProduct.id) || selectedProduct;
+        const initialMatch = INITIAL_PRODUCTS.find(p => p.id === currentProduct.id);
+        const curCal = currentProduct.calories ?? initialMatch?.calories ?? 0;
+        const curProt = currentProduct.proteins ?? initialMatch?.proteins ?? 0;
+        const curFat = currentProduct.fats ?? initialMatch?.fats ?? 0;
+        const curCarb = currentProduct.carbs ?? initialMatch?.carbs ?? 0;
         const isAvail = currentProduct.isAvailable !== false;
 
         return (
@@ -1798,19 +1866,19 @@ export function App() {
 
                   <div className="grid grid-cols-4 gap-2 text-center text-xs">
                     <div className={`p-1.5 rounded-lg ${isDarkTheme ? 'bg-[#202126]' : 'bg-[#e9e6df]'}`}>
-                      <div className="font-semibold text-[#c86428]">{currentProduct.calories || 240}</div>
+                      <div className="font-semibold text-[#c86428]">{curCal}</div>
                       <div className={`text-[10px] ${theme.textMuted}`}>ккал</div>
                     </div>
                     <div className={`p-1.5 rounded-lg ${isDarkTheme ? 'bg-[#202126]' : 'bg-[#e9e6df]'}`}>
-                      <div className="font-semibold">{currentProduct.proteins || 14} г</div>
+                      <div className="font-semibold">{curProt} г</div>
                       <div className={`text-[10px] ${theme.textMuted}`}>белки</div>
                     </div>
                     <div className={`p-1.5 rounded-lg ${isDarkTheme ? 'bg-[#202126]' : 'bg-[#e9e6df]'}`}>
-                      <div className="font-semibold">{currentProduct.fats || 16} г</div>
+                      <div className="font-semibold">{curFat} г</div>
                       <div className={`text-[10px] ${theme.textMuted}`}>жиры</div>
                     </div>
                     <div className={`p-1.5 rounded-lg ${isDarkTheme ? 'bg-[#202126]' : 'bg-[#e9e6df]'}`}>
-                      <div className="font-semibold">{currentProduct.carbs || 22} г</div>
+                      <div className="font-semibold">{curCarb} г</div>
                       <div className={`text-[10px] ${theme.textMuted}`}>углеводы</div>
                     </div>
                   </div>
@@ -1928,7 +1996,14 @@ export function App() {
                         <img src={item.product.image} alt={item.product.name} className="w-9 h-9 rounded-lg object-cover shrink-0" />
                         <div className="truncate">
                           <div className={`font-medium truncate ${theme.textPrimary}`}>{item.product.name}</div>
-                          <div className="text-[#c86428] font-semibold">{item.product.price} ₽</div>
+                          <div className="flex items-center gap-1.5 text-[11px]">
+                            <span className="text-[#c86428] font-semibold">{item.product.price} ₽</span>
+                            {Boolean(item.product.calories) && (
+                              <span className={`text-[10px] ${theme.textMuted}`}>
+                                • {(item.product.calories || 0) * item.quantity} ккал
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -1949,6 +2024,26 @@ export function App() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Total Cart KBJU */}
+              {cartItems.length > 0 && cartTotalKbju.cals > 0 && (
+                <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                  isDarkTheme ? 'bg-[#1e1f24] border-[#292b32]' : 'bg-[#f4f2ec] border-[#e7e4dc]'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">⚡</span>
+                    <div>
+                      <div className={`font-medium text-[11px] ${theme.textPrimary}`}>КБЖУ всего заказа</div>
+                      <div className={`text-[10px] ${theme.textMuted}`}>
+                        Б: {cartTotalKbju.p}г • Ж: {cartTotalKbju.f}г • У: {cartTotalKbju.c}г
+                      </div>
+                    </div>
+                  </div>
+                  <div className="font-semibold text-xs text-[#c86428]">
+                    {cartTotalKbju.cals} ккал
+                  </div>
                 </div>
               )}
 
