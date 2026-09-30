@@ -88,40 +88,53 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
-    # Seed products if empty
-    cursor.execute("SELECT COUNT(*) FROM products")
-    if cursor.fetchone()[0] == 0:
-        initial_products = [
-            ('b1', 'Блэк Ангус Бургер', 'burgers', 490, 590, 1, 'Хит', 'Мраморная говядина, сыр чеддер, хрустящий бекон, лук BBQ.', '360 г', 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80', 940, 55, 52, 64),
-            ('b2', 'Трюфельный Чизбургер', 'burgers', 590, None, 1, 'Шеф-выбор', 'Двойная котлета из говядины, соус с белым трюфелем, руккола.', '380 г', 'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=600&auto=format&fit=crop&q=80', 1020, 57, 66, 50),
-            ('b3', 'Криспи Чикен Бургер', 'burgers', 420, None, 1, '', 'Нежное филе цыпленка в хрустящей панировке, айсберг, ранч.', '320 г', 'https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?w=600&auto=format&fit=crop&q=80', 730, 36, 38, 60),
-            ('p1', 'Пицца Пепперони Премиум', 'pizza', 680, 750, 1, 'Топ', 'Пряная чоризо, моцарелла фьор ди латте, Сан Марцано.', '550 г (30 см)', 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600&auto=format&fit=crop&q=80', 1480, 64, 71, 145),
-            ('p2', 'Пицца Четыре Сыра', 'pizza', 740, None, 1, '', 'Сливочная основа, моцарелла, горгонзола, таледжо, пармезан.', '520 г (30 см)', 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80', 1470, 66, 73, 136),
-            ('d1', 'Лимонад Малина-Маракуйя', 'drinks', 260, None, 1, '', 'Крафтовый освежающий лимонад из натурального пюре.', '450 мл', 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80', 125, 2, 1, 28),
-            ('d2', 'Матча Латте на кокосовом', 'drinks', 310, None, 1, '', 'Японский чай матча на нежном кокосовом молоке.', '350 мл', 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=80', 170, 3, 8, 21),
-            ('des1', 'Баскский Чизкейк', 'desserts', 390, None, 1, 'Новинка', 'Карамелизованная корочка и нежная сливочная середина.', '180 г', 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=600&auto=format&fit=crop&q=80', 580, 10, 46, 32)
-        ]
-        cursor.executemany("""
+    ALL_PRODUCTS = [
+        # id, name, category, price, old_price, is_available, badge, description, weight, image, calories, proteins, fats, carbs
+        ('b1', 'Блэк Ангус Бургер', 'burgers', 490, 590, 1, 'Хит', 'Мраморная говядина Black Angus 200 дней зернового откорма, нежный сыр чеддер, хрустящий бекон, лук BBQ.', '360 г', 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80', 940, 55, 52, 64),
+        ('b2', 'Трюфельный Чизбургер', 'burgers', 590, None, 1, 'Шеф-выбор', 'Двойная котлета из говядины, соус с белым трюфелем, руккола, пармезан.', '380 г', 'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=600&auto=format&fit=crop&q=80', 1020, 57, 66, 50),
+        ('b3', 'Криспи Чикен Бургер', 'burgers', 420, None, 1, '', 'Нежное филе цыпленка в хрустящей панировке panko, айсберг, ранч.', '320 г', 'https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?w=600&auto=format&fit=crop&q=80', 730, 36, 38, 60),
+        ('b4', 'Смоки Двойной Бекон Бургер', 'burgers', 620, 690, 1, 'Топ', 'Две сочные котлеты Black Angus, двойной бекон, чеддер, халапеньо, чипотле.', '420 г', 'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=600&auto=format&fit=crop&q=80', 1140, 68, 74, 48),
+        ('b5', 'Камамбер & Вишня Бургер', 'burgers', 560, None, 1, 'Новинка', 'Говяжья котлета, запеченный камамбер, пряный вишневый конфитюр, бриошь.', '350 г', 'https://images.unsplash.com/photo-1521305916504-4a1121188589?w=600&auto=format&fit=crop&q=80', 860, 48, 46, 62),
+        ('st1', 'Стейк Рибай Прайм', 'steaks', 1390, 1550, 1, 'Шеф-выбор', 'Премиальный толстый край зернового откорма 180 дней на углях с розмарином.', '350 г', 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80', 890, 72, 66, 2),
+        ('st2', 'Томленые BBQ Ребрышки', 'steaks', 790, None, 1, 'Хит', 'Свиные ребрышки 8-часового томления в смокере, глазурь бурбон-барбекю, картофель фри.', '450 г', 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80', 1180, 54, 78, 65),
+        ('st3', 'Филе Лосося с диким рисом', 'steaks', 940, None, 1, '', 'Стейк из атлантического лосося, молодая спаржа на пару, дикий рис, соус голландез.', '310 г', 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=600&auto=format&fit=crop&q=80', 620, 42, 34, 36),
+        ('st4', 'Том Ям с тигровыми креветками', 'steaks', 650, None, 1, 'Топ', 'Пряный тайский суп на кокосовом молоке с лемонграссом, шиитаке и тигровыми креветками.', '400 г', 'https://images.unsplash.com/photo-1548943487-a2e4e43b4853?w=600&auto=format&fit=crop&q=80', 480, 28, 22, 42),
+        ('p1', 'Пицца Пепперони Премиум', 'pizza', 680, 750, 1, 'Топ', 'Пряная чоризо и пепперони, моцарелла фьор ди латте, Сан Марцано, базилик.', '550 г (30 см)', 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600&auto=format&fit=crop&q=80', 1480, 64, 71, 145),
+        ('p2', 'Пицца Четыре Сыра', 'pizza', 740, None, 1, '', 'Сливочная основа, моцарелла, горгонзола D.O.P., таледжо, выдержанный пармезан.', '520 г (30 см)', 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80', 1470, 66, 73, 136),
+        ('p3', 'Пицца Прошутто & Страчателла', 'pizza', 780, None, 1, 'Шеф-выбор', 'Пышный неаполитанский бортик, сливочная страчателла, прошутто ди парма, руккола.', '540 г (30 см)', 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&auto=format&fit=crop&q=80', 1390, 62, 64, 142),
+        ('p4', 'Паста Карбонара с гуанчале', 'pizza', 540, None, 1, 'Хит', 'Спагетти бронзовой матрицы, хрустящий сыровяленый гуанчале, желтки, пекорино романо.', '320 г', 'https://images.unsplash.com/photo-1612874742237-6526221588e3?w=600&auto=format&fit=crop&q=80', 780, 32, 42, 68),
+        ('p5', 'Трюфельная Паста с белыми грибами', 'pizza', 590, None, 1, '', 'Тальятелле в сливочно-трюфельном соусе с белыми лесными грибами и пармезаном.', '340 г', 'https://images.unsplash.com/photo-1621996346565-e3d5d6281729?w=600&auto=format&fit=crop&q=80', 690, 24, 36, 68),
+        ('a1', 'Хрустящие Креветки темпура', 'starters', 580, None, 1, 'Хит', 'Королевские креветки в легком кляре темпура со сладким соусом васаби-майо и миндалем.', '220 г', 'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=600&auto=format&fit=crop&q=80', 460, 26, 24, 35),
+        ('a2', 'Тартар из мраморной говядины', 'starters', 560, None, 1, 'Шеф-выбор', 'Рубленая вырезка Black Angus, каперсы, шалот, перепелиный желток, тосты тартин.', '190 г', 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80', 390, 31, 26, 8),
+        ('a3', 'Боул с тунцом и авокадо', 'starters', 620, None, 1, 'Топ', 'Опаленный тунец в кунжуте, авокадо хасс, эдамаме, чука, киноа, понзу-дрессинг.', '340 г', 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80', 510, 38, 18, 48),
+        ('a4', 'Хрустящие баклажаны страчателла', 'starters', 460, None, 1, '', 'Баклажаны в кисло-сладком соусе, спелые томаты, страчателла, кинза, жареный кешью.', '280 г', 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&auto=format&fit=crop&q=80', 420, 12, 28, 31),
+        ('a5', 'Картофель Фри с трюфелем', 'starters', 320, None, 1, '', 'Хрустящие брусочки картофеля с морской солью, тертым пармезаном и трюфельным маслом.', '200 г', 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&auto=format&fit=crop&q=80', 480, 8, 26, 53),
+        ('des1', 'Баскский Чизкейк Сан-Себастьян', 'desserts', 390, None, 1, 'Новинка', 'Карамелизованный обожженный чизкейк со сливочной тающей текстурой и ягодами.', '180 г', 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=600&auto=format&fit=crop&q=80', 580, 10, 46, 32),
+        ('des2', 'Классический Тирамису', 'desserts', 420, None, 1, 'Хит', 'Фермерский маскарпоне, эспрессо, амаретто, бисквит савоярди и темное какао.', '190 г', 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=600&auto=format&fit=crop&q=80', 510, 9, 32, 47),
+        ('des3', 'Шоколадный Фондан с пломбиром', 'desserts', 440, None, 1, '', 'Горячий кекс из темного бельгийского шоколада с жидким центром и шариком пломбира.', '160 г', 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=600&auto=format&fit=crop&q=80', 620, 11, 38, 58),
+        ('d1', 'Лимонад Малина-Маракуйя', 'drinks', 260, None, 1, '', 'Крафтовый освежающий лимонад из пюре маракуйи, свежей малины, мяты и минеральной воды.', '450 мл', 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80', 125, 2, 1, 28),
+        ('d2', 'Матча Латте на кокосовом', 'drinks', 310, None, 1, '', 'Японский чай матча сорта Удзи на органическом кокосовом молоке.', '350 мл', 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=80', 170, 3, 8, 21),
+        ('d3', 'Цитрусовый Бамбл Кофе', 'drinks', 290, None, 1, 'Топ', 'Двойной эспрессо 100% арабика, свежевыжатый сок апельсина и карамель со льдом.', '350 мл', 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=80', 140, 2, 1, 31),
+        ('d4', 'Милкшейк Соленая Карамель & Oreo', 'drinks', 360, None, 1, '', 'Густой сливочный пломбирный коктейль с печеньем Oreo, взбитыми сливками и карамелью.', '400 мл', 'https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&auto=format&fit=crop&q=80', 590, 12, 28, 72),
+        ('d5', 'Смузи Манго-Ананас-Имбирь', 'drinks', 330, None, 1, 'Новинка', 'Густой детокс-смузи из спелого манго, свежего ананаса, кокосовой воды и имбиря.', '380 мл', 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=600&auto=format&fit=crop&q=80', 180, 3, 2, 38)
+    ]
+
+    for p in ALL_PRODUCTS:
+        cursor.execute("""
         INSERT INTO products (id, name, category, price, old_price, is_available, badge, description, weight, image, calories, proteins, fats, carbs)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, initial_products)
-    else:
-        # Populate KBJU on existing products
-        kbju_map = {
-            'b1': (940, 55, 52, 64),
-            'b2': (1020, 57, 66, 50),
-            'b3': (730, 36, 38, 60),
-            'p1': (1480, 64, 71, 145),
-            'p2': (1470, 66, 73, 136),
-            'd1': (125, 2, 1, 28),
-            'd2': (170, 3, 8, 21),
-            'des1': (580, 10, 46, 32),
-        }
-        for pid, (cal, prot, fat, carb) in kbju_map.items():
-            cursor.execute(
-                "UPDATE products SET calories = ?, proteins = ?, fats = ?, carbs = ? WHERE id = ?",
-                (cal, prot, fat, carb, pid)
-            )
+        ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            category = excluded.category,
+            badge = excluded.badge,
+            description = excluded.description,
+            weight = excluded.weight,
+            image = excluded.image,
+            calories = excluded.calories,
+            proteins = excluded.proteins,
+            fats = excluded.fats,
+            carbs = excluded.carbs
+        """, p)
 
     conn.commit()
     conn.close()

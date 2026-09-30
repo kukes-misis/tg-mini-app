@@ -10,9 +10,10 @@ from aiogram.types import (
     InlineKeyboardButton, 
     ReplyKeyboardMarkup,
     KeyboardButton,
-    ReplyKeyboardRemove
+    ReplyKeyboardRemove,
+    WebAppInfo
 )
-from config import ADMIN_BOT_TOKEN, BOT_TOKEN, ADMIN_LOGIN, ADMIN_PASSWORD
+from config import ADMIN_BOT_TOKEN, BOT_TOKEN, ADMIN_LOGIN, ADMIN_PASSWORD, WEBAPP_URL
 import database as db
 
 # Bot instance for the dedicated Admin Bot
@@ -32,6 +33,12 @@ class AdminPriceEditState(StatesGroup):
 
 def get_admin_menu_keyboard():
     buttons = [
+        [
+            KeyboardButton(
+                text="⚡ Открыть панель управления", 
+                web_app=WebAppInfo(url=f"{WEBAPP_URL}?admin=1&auth=1")
+            )
+        ],
         [
             KeyboardButton(text="📦 Активные заказы"),
             KeyboardButton(text="📋 История заказов")
@@ -53,12 +60,21 @@ def get_admin_menu_keyboard():
 async def handle_admin_start(message: types.Message, state: FSMContext):
     chat_id = message.chat.id
     if db.is_admin_session(chat_id):
+        webapp_kb = InlineKeyboardMarkup(
+            inline_keyboard=[[
+                InlineKeyboardButton(
+                    text="⚡ Открыть панель управления (Mini App)", 
+                    web_app=WebAppInfo(url=f"{WEBAPP_URL}?admin=1&auth=1")
+                )
+            ]]
+        )
         await message.answer(
             "👑 <b>Диспетчерская Vibe Kitchen</b>\n\n"
-            "Вы уже авторизованы в системе. Выберите раздел меню ниже:",
-            reply_markup=get_admin_menu_keyboard(),
+            "Вы уже авторизованы в системе. Нажмите кнопку ниже для запуска веб-панели или используйте меню бота:",
+            reply_markup=webapp_kb,
             parse_mode="HTML"
         )
+        await message.answer("👇 Клавиатура управления заказами:", reply_markup=get_admin_menu_keyboard())
         return
 
     await state.set_state(AdminLoginState.waiting_for_login)
@@ -91,13 +107,22 @@ async def process_admin_password(message: types.Message, state: FSMContext):
     if entered_password in (ADMIN_PASSWORD, "1"):
         db.add_admin_session(message.chat.id)
         await state.clear()
+        webapp_kb = InlineKeyboardMarkup(
+            inline_keyboard=[[
+                InlineKeyboardButton(
+                    text="⚡ Открыть панель управления (Mini App)", 
+                    web_app=WebAppInfo(url=f"{WEBAPP_URL}?admin=1&auth=1")
+                )
+            ]]
+        )
         await message.answer(
             "✅ <b>Авторизация успешна!</b>\n\n"
-            "Добро пожаловать в панель диспетчера Vibe Kitchen.\n"
-            "Все оповещения о новых заказах клиентов будут мгновенно приходить сюда.",
-            reply_markup=get_admin_menu_keyboard(),
+            "Добро пожаловать в панель диспетчера Vibe Kitchen в стиле MPSTATS.\n\n"
+            "Вы можете управлять заказами прямо в Mini App или с помощью кнопок бота 👇",
+            reply_markup=webapp_kb,
             parse_mode="HTML"
         )
+        await message.answer("Меню диспетчера активно:", reply_markup=get_admin_menu_keyboard())
     else:
         await message.answer("❌ Неверный пароль. Доступ запрещен. Отправьте /start для повтора.")
         await state.clear()
@@ -456,7 +481,14 @@ async def broadcast_order_to_admins(order_data: dict):
         alert_html += f"💬 <b>Комментарий:</b> {html.escape(comment)}\n"
     alert_html += f"\n📦 <b>Состав:</b>\n{items_html}"
 
-    buttons = []
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text="⚡ Открыть заказ в Mini App", 
+                web_app=WebAppInfo(url=f"{WEBAPP_URL}?admin=1&order={order_num}&auth=1")
+            )
+        ]
+    ]
     if username:
         buttons.append([InlineKeyboardButton(text=f"💬 Написать @{username}", url=f"https://t.me/{username}")])
     buttons.extend([

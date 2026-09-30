@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   ShoppingBag, 
   Search, 
@@ -28,7 +28,13 @@ import {
   ChevronRight,
   Sparkles,
   Archive,
-  ArchiveRestore
+  ArchiveRestore,
+  Shield,
+  Sliders,
+  LogOut,
+  RefreshCw,
+  TrendingUp,
+  ExternalLink
 } from 'lucide-react';
 import { CATEGORIES, PRODUCTS as INITIAL_PRODUCTS } from './data/products';
 import { Product, CartItem, OrderData, OrderStatus } from './types';
@@ -316,8 +322,25 @@ export function App() {
   const [isDarkTheme, setIsDarkTheme] = useState<boolean>(() => !getMoscowTimeInfo().isDaytime);
   const [moscowTimeStr, setMoscowTimeStr] = useState<string>(() => getMoscowTimeInfo().timeStr);
 
-  // Customer Navigation: 'menu' | 'orders' | 'support'
-  const [activeTab, setActiveTab] = useState<'menu' | 'orders' | 'support'>('menu');
+  // Customer Navigation: 'menu' | 'orders' | 'support' | 'admin'
+  const [activeTab, setActiveTab] = useState<'menu' | 'orders' | 'support' | 'admin'>('menu');
+
+  // Admin Dashboard State
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('vk_admin_auth') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [adminLoginInput, setAdminLoginInput] = useState('');
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [adminAuthError, setAdminAuthError] = useState('');
+  const [adminOrders, setAdminOrders] = useState<OrderData[]>([]);
+  const [adminFilterTab, setAdminFilterTab] = useState<'all' | 'new' | 'cooking' | 'delivering' | 'completed' | 'menu'>('all');
+  const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
+  const [editingPriceValue, setEditingPriceValue] = useState<string>('');
+  const [adminOrderSearch, setAdminOrderSearch] = useState<string>('');
 
   // Products & Categories
   const [products, setProducts] = useState<Product[]>(() => {
@@ -506,12 +529,22 @@ export function App() {
     localStorage.setItem('tg_store_wishlist', JSON.stringify(wishlist));
   }, [wishlist]);
 
-  // Deep Link ?tab=orders
+  // Deep Link ?tab=orders / ?admin=1 / ?auth=1
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('tab') === 'orders') {
         setActiveTab('orders');
+      }
+      if (urlParams.get('auth') === '1' || urlParams.get('token') === '1') {
+        localStorage.setItem('vk_admin_auth', '1');
+        setIsAdminLoggedIn(true);
+        setActiveTab('admin');
+      } else if (urlParams.get('admin') === '1' || urlParams.get('tab') === 'admin') {
+        setActiveTab('admin');
+      }
+      if (urlParams.get('order')) {
+        setAdminOrderSearch(urlParams.get('order') || '');
       }
     } catch {
       // ignore
@@ -666,7 +699,7 @@ export function App() {
     };
   }, []);
 
-  const triggerHaptic = (type: 'light' | 'medium' | 'success' | 'error') => {
+  const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'success' | 'error') => {
     try {
       if (type === 'success' || type === 'error') {
         window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred(type);
@@ -1013,7 +1046,187 @@ export function App() {
   }, [unarchivedOrders]);
 
   const activeOrders = inProgressOrders;
-  const displayedOrders = orderFilterTab === 'active' ? unarchivedOrders : archivedOrders;
+
+  const displayedOrders = useMemo(() => {
+    return orderFilterTab === 'active' ? unarchivedOrders : archivedOrders;
+  }, [orderFilterTab, unarchivedOrders, archivedOrders]);
+
+  // --- ADMIN DASHBOARD LOGIC ---
+  const fetchAdminOrders = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/orders?admin=1&_t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const mapped: OrderData[] = data.map((o: any) => ({
+            ...o,
+            id: o.id || o.orderNumber || o.order_number,
+            orderNumber: o.orderNumber || o.order_number,
+            totalPrice: Number(o.totalPrice ?? o.total_price ?? 0),
+            customerName: o.customerName || o.user_name || 'Клиент',
+            username: o.username || (o as any).user_name || '',
+            phone: o.phone || '',
+            address: o.address || '',
+            comment: o.comment || '',
+            createdAt: o.createdAt || o.created_at || '',
+            estimatedTime: o.estimatedTime || o.estimated_time,
+            statusNote: o.statusNote || o.status_note,
+            statusUpdatedAt: o.statusUpdatedAt || o.status_updated_at,
+            completedAt: o.completedAt || o.completed_at,
+            etaTimestamp: o.etaTimestamp || o.eta_timestamp,
+            etaMinutes: o.etaMinutes || o.eta_minutes,
+            items: Array.isArray(o.items) ? o.items : []
+          }));
+          setAdminOrders(mapped);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch admin orders:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdminLoggedIn) {
+      fetchAdminOrders();
+      const interval = setInterval(fetchAdminOrders, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [isAdminLoggedIn, fetchAdminOrders]);
+
+  const adminAnalytics = useMemo(() => {
+    const totalOrders = adminOrders.length;
+    const completedOrders = adminOrders.filter(o => o.status === 'completed');
+    const revenue = completedOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+    const newOrders = adminOrders.filter(o => o.status === 'new');
+    const cookingOrders = adminOrders.filter(o => o.status === 'cooking');
+    const deliveringOrders = adminOrders.filter(o => o.status === 'delivering');
+    const inProgressCount = newOrders.length + cookingOrders.length + deliveringOrders.length;
+    return {
+      totalOrders,
+      revenue,
+      inProgressCount,
+      newCount: newOrders.length,
+      cookingCount: cookingOrders.length,
+      deliveringCount: deliveringOrders.length,
+      completedCount: completedOrders.length
+    };
+  }, [adminOrders]);
+
+  const filteredAdminOrders = useMemo(() => {
+    let list = adminOrders;
+    if (adminFilterTab === 'new') list = list.filter(o => o.status === 'new');
+    else if (adminFilterTab === 'cooking') list = list.filter(o => o.status === 'cooking');
+    else if (adminFilterTab === 'delivering') list = list.filter(o => o.status === 'delivering');
+    else if (adminFilterTab === 'completed') list = list.filter(o => o.status === 'completed' || o.status === 'cancelled');
+
+    if (adminOrderSearch.trim()) {
+      const q = adminOrderSearch.trim().toLowerCase();
+      list = list.filter(o => 
+        (o.orderNumber && String(o.orderNumber).toLowerCase().includes(q)) ||
+        (o.customerName && o.customerName.toLowerCase().includes(q)) ||
+        (o.phone && o.phone.toLowerCase().includes(q)) ||
+        (o.address && o.address.toLowerCase().includes(q)) ||
+        (o.username && o.username.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [adminOrders, adminFilterTab, adminOrderSearch]);
+
+  const handleAdminLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const login = adminLoginInput.trim();
+    const pass = adminPasswordInput.trim();
+    if ((login === '1' || login.toLowerCase() === 'admin') && (pass === '1' || pass.toLowerCase() === 'admin')) {
+      localStorage.setItem('vk_admin_auth', '1');
+      setIsAdminLoggedIn(true);
+      setAdminAuthError('');
+      playSound('success');
+      triggerHaptic('heavy');
+    } else {
+      setAdminAuthError('Неверный логин или пароль (используйте 1 / 1)');
+      playSound('error');
+      triggerHaptic('error');
+    }
+  };
+
+  const handleAdminLogout = () => {
+    localStorage.removeItem('vk_admin_auth');
+    setIsAdminLoggedIn(false);
+    setActiveTab('menu');
+    triggerHaptic('light');
+  };
+
+  const handleAdminUpdateStatus = async (orderNumber: string, newStatus: string, etaMinutes?: number) => {
+    try {
+      triggerHaptic('medium');
+      const payload: any = {
+        orderNumber,
+        status: newStatus
+      };
+      if (etaMinutes) {
+        payload.etaMinutes = etaMinutes;
+        payload.estimatedTime = `~${etaMinutes} мин`;
+      }
+      const res = await fetch(`${API_BASE_URL}/api/orders/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        playSound('status');
+        fetchAdminOrders();
+      }
+    } catch (e) {
+      console.error('Failed to update order status:', e);
+    }
+  };
+
+  const handleAdminDelete = async (orderNumber: string) => {
+    if (!window.confirm(`Удалить заказ #${orderNumber} из базы данных?`)) return;
+    try {
+      triggerHaptic('heavy');
+      const res = await fetch(`${API_BASE_URL}/api/orders/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderNumber })
+      });
+      if (res.ok) {
+        playSound('remove');
+        fetchAdminOrders();
+      }
+    } catch (e) {
+      console.error('Failed to delete order:', e);
+    }
+  };
+
+  const handleAdminToggleAvailability = async (productId: string) => {
+    try {
+      triggerHaptic('light');
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, isAvailable: !p.isAvailable } : p));
+      await fetch(`${API_BASE_URL}/api/products/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId })
+      });
+    } catch (e) {
+      console.error('Failed to toggle product availability:', e);
+    }
+  };
+
+  const handleAdminChangePrice = async (productId: string, newPrice: number) => {
+    try {
+      triggerHaptic('medium');
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, price: newPrice } : p));
+      setEditingPriceProductId(null);
+      await fetch(`${API_BASE_URL}/api/products/price`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId, price: newPrice })
+      });
+    } catch (e) {
+      console.error('Failed to update price:', e);
+    }
+  };
 
   // MPSTATS High-contrast Tech Minimalism tokens
   const theme = {
@@ -1071,6 +1284,25 @@ export function App() {
               {isDarkTheme ? <Moon className="w-3.5 h-3.5 text-[#16ff60]" /> : <Sun className="w-3.5 h-3.5 text-[#ff5533]" />}
               <span className="font-mono text-[11px]">{moscowTimeStr}</span>
             </button>
+
+            {/* Admin PRO Quick Switch */}
+            {isAdminLoggedIn && (
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  setActiveTab('admin');
+                }}
+                title="Панель управления"
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-black tracking-wider uppercase border transition-all active:scale-95 cursor-pointer ${
+                  activeTab === 'admin'
+                    ? 'bg-[#16ff60] text-[#0c0d10] border-[#16ff60] shadow-[0_0_10px_rgba(22,255,96,0.4)]'
+                    : 'bg-[#16ff60]/10 text-[#16ff60] border-[#16ff60]/30 hover:border-[#16ff60]'
+                }`}
+              >
+                <Shield className="w-3 h-3" />
+                <span>PRO</span>
+              </button>
+            )}
 
             {/* Cart Button */}
             <button
@@ -1611,7 +1843,7 @@ export function App() {
 
                     {/* Order Items */}
                     <div className="space-y-1.5 text-xs">
-                      {Array.isArray(order.items) && order.items.map((item, idx) => {
+                      {Array.isArray(order.items) && order.items.map((item: any, idx: number) => {
                         const itemPrice = Number(item.price) || 0;
                         const itemQty = Number(item.quantity) || 1;
                         const pMatch = INITIAL_PRODUCTS.find(p => p.id === item.id || p.name === item.name);
@@ -1736,7 +1968,7 @@ export function App() {
                   </div>
                 </div>
 
-                <div className={`p-3 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
+                  <div className={`p-3 rounded-xl border ${theme.subtleBg} ${theme.cardBorder}`}>
                   <div className={`font-bold mb-0.5 ${theme.textPrimary}`}>Способ оплаты</div>
                   <div className={`text-[11px] leading-relaxed ${theme.textMuted}`}>
                     Оплата происходит при получении курьеру — наличными или банковской картой.
@@ -1744,6 +1976,674 @@ export function App() {
                 </div>
               </div>
             </div>
+
+            {/* Quick entry link to admin panel */}
+            <div className="pt-2 text-center">
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  setActiveTab('admin');
+                }}
+                className={`text-[10px] font-mono tracking-wider transition-colors ${theme.textMuted} hover:text-[#16ff60]`}
+              >
+                [ Диспетчерская / Панель управления ]
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= TAB 4: ADMIN / DISPATCHER ================= */}
+        {activeTab === 'admin' && (
+          <div className="space-y-4">
+            
+            {/* NOT LOGGED IN: LOGIN SCREEN */}
+            {!isAdminLoggedIn ? (
+              <div className={`p-6 rounded-3xl border ${theme.cardBg} ${theme.cardBorder} shadow-2xl space-y-5 max-w-md mx-auto my-4`}>
+                <div className="text-center space-y-2">
+                  <div className="w-12 h-12 rounded-2xl mx-auto flex items-center justify-center bg-[#16ff60]/10 border border-[#16ff60]/30 text-[#16ff60]">
+                    <Shield className="w-6 h-6" />
+                  </div>
+                  <h2 className={`text-base font-extrabold tracking-tight uppercase ${theme.textPrimary}`}>
+                    Vibe Kitchen Pro
+                  </h2>
+                  <p className={`text-xs ${theme.textMuted}`}>
+                    Диспетчерская панель управления рестораном
+                  </p>
+                </div>
+
+                <form onSubmit={handleAdminLogin} className="space-y-3.5">
+                  <div>
+                    <label className={`block text-[11px] font-mono uppercase tracking-wider mb-1.5 ${theme.textMuted}`}>
+                      Логин сотрудника
+                    </label>
+                    <input
+                      type="text"
+                      value={adminLoginInput}
+                      onChange={(e) => setAdminLoginInput(e.target.value)}
+                      placeholder="1 или admin"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono transition-colors focus:outline-none focus:border-[#16ff60] ${
+                        isDarkTheme 
+                          ? 'bg-[#1a1b22] border-[#262832] text-[#f4f5f8] placeholder-[#555a68]' 
+                          : 'bg-[#f1f2f5] border-[#d1d5db] text-[#0c0d10] placeholder-[#9ca3af]'
+                      }`}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-[11px] font-mono uppercase tracking-wider mb-1.5 ${theme.textMuted}`}>
+                      Пароль
+                    </label>
+                    <input
+                      type="password"
+                      value={adminPasswordInput}
+                      onChange={(e) => setAdminPasswordInput(e.target.value)}
+                      placeholder="••••"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono transition-colors focus:outline-none focus:border-[#16ff60] ${
+                        isDarkTheme 
+                          ? 'bg-[#1a1b22] border-[#262832] text-[#f4f5f8] placeholder-[#555a68]' 
+                          : 'bg-[#f1f2f5] border-[#d1d5db] text-[#0c0d10] placeholder-[#9ca3af]'
+                      }`}
+                    />
+                  </div>
+
+                  {adminAuthError && (
+                    <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium text-center">
+                      {adminAuthError}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-full font-black text-xs cursor-pointer transition-all bg-[#16ff60] text-[#0c0d10] shadow-[0_4px_15px_rgba(22,255,96,0.35)] hover:brightness-105 active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>Войти в диспетчерскую</span>
+                  </button>
+
+                  <div className="text-center pt-1">
+                    <span className={`text-[10px] font-mono ${theme.textMuted}`}>
+                      Тестовый доступ: логин <b className="text-[#16ff60]">1</b> / пароль <b className="text-[#16ff60]">1</b>
+                    </span>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              /* LOGGED IN: MPSTATS BENTO DISPATCHER DASHBOARD */
+              <div className="space-y-4">
+                
+                {/* Dashboard Top Header */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#16ff60]/10 border border-[#16ff60]/30 text-[#16ff60]">
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h2 className={`text-sm font-extrabold tracking-tight uppercase ${theme.textPrimary}`}>
+                          Диспетчерская VIBE
+                        </h2>
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#16ff60] animate-pulse" />
+                      </div>
+                      <p className={`text-[10px] font-mono ${theme.textMuted}`}>
+                        Управление заказами и кухней
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => {
+                        triggerHaptic('light');
+                        fetchAdminOrders();
+                      }}
+                      title="Обновить данные"
+                      className={`p-2 rounded-xl border text-xs transition-all cursor-pointer ${
+                        isDarkTheme 
+                          ? 'bg-[#14151a] border-[#22242c] text-[#8b8f9e] hover:text-[#16ff60] hover:border-[#16ff60]/40' 
+                          : 'bg-[#ffffff] border-[#e5e7eb] text-[#6b7280] hover:text-[#0c0d10]'
+                      }`}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      onClick={handleAdminLogout}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                        isDarkTheme 
+                          ? 'bg-[#14151a] border-[#22242c] text-red-400 hover:bg-red-500/10 hover:border-red-500/30' 
+                          : 'bg-[#ffffff] border-[#e5e7eb] text-red-600 hover:bg-red-50'
+                      }`}
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Выйти</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* MPSTATS Bento Analytics Metrics */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className={`p-3 rounded-2xl border ${theme.cardBg} ${theme.cardBorder}`}>
+                    <div className={`text-[10px] font-mono uppercase tracking-wider ${theme.textMuted}`}>
+                      Выручка
+                    </div>
+                    <div className="text-base font-black text-[#16ff60] mt-0.5 font-mono">
+                      {adminAnalytics.revenue.toLocaleString('ru-RU')} ₽
+                    </div>
+                    <div className={`text-[9px] mt-0.5 ${theme.textMuted}`}>
+                      {adminAnalytics.completedCount} завершено
+                    </div>
+                  </div>
+
+                  <div className={`p-3 rounded-2xl border ${theme.cardBg} ${theme.cardBorder}`}>
+                    <div className={`text-[10px] font-mono uppercase tracking-wider ${theme.textMuted}`}>
+                      В работе
+                    </div>
+                    <div className="text-base font-black text-amber-400 mt-0.5 font-mono">
+                      {adminAnalytics.inProgressCount}
+                    </div>
+                    <div className={`text-[9px] mt-0.5 ${theme.textMuted}`}>
+                      {adminAnalytics.newCount} нов • {adminAnalytics.cookingCount} кух • {adminAnalytics.deliveringCount} курьер
+                    </div>
+                  </div>
+
+                  <div className={`p-3 rounded-2xl border ${theme.cardBg} ${theme.cardBorder}`}>
+                    <div className={`text-[10px] font-mono uppercase tracking-wider ${theme.textMuted}`}>
+                      Всего заказов
+                    </div>
+                    <div className={`text-base font-black mt-0.5 font-mono ${theme.textPrimary}`}>
+                      {adminAnalytics.totalOrders}
+                    </div>
+                    <div className={`text-[9px] mt-0.5 ${theme.textMuted}`}>
+                      В базе данных
+                    </div>
+                  </div>
+
+                  <div className={`p-3 rounded-2xl border ${theme.cardBg} ${theme.cardBorder}`}>
+                    <div className={`text-[10px] font-mono uppercase tracking-wider ${theme.textMuted}`}>
+                      Стоп-лист
+                    </div>
+                    <div className="text-base font-black text-purple-400 mt-0.5 font-mono">
+                      {products.filter(p => p.isAvailable === false).length}
+                    </div>
+                    <div className={`text-[9px] mt-0.5 ${theme.textMuted}`}>
+                      Блюд отключено
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setAdminFilterTab('all');
+                    }}
+                    className={`px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all ${
+                      adminFilterTab === 'all' ? theme.pillActive : theme.pillInactive
+                    }`}
+                  >
+                    Все ({adminOrders.length})
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setAdminFilterTab('new');
+                    }}
+                    className={`relative px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all ${
+                      adminFilterTab === 'new' ? theme.pillActive : theme.pillInactive
+                    }`}
+                  >
+                    🟡 Новые ({adminAnalytics.newCount})
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setAdminFilterTab('cooking');
+                    }}
+                    className={`px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all ${
+                      adminFilterTab === 'cooking' ? theme.pillActive : theme.pillInactive
+                    }`}
+                  >
+                    👨‍🍳 Кухня ({adminAnalytics.cookingCount})
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setAdminFilterTab('delivering');
+                    }}
+                    className={`px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all ${
+                      adminFilterTab === 'delivering' ? theme.pillActive : theme.pillInactive
+                    }`}
+                  >
+                    🚴 В пути ({adminAnalytics.deliveringCount})
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setAdminFilterTab('completed');
+                    }}
+                    className={`px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all ${
+                      adminFilterTab === 'completed' ? theme.pillActive : theme.pillInactive
+                    }`}
+                  >
+                    ✅ Выполнены ({adminAnalytics.completedCount})
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setAdminFilterTab('menu');
+                    }}
+                    className={`px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all ${
+                      adminFilterTab === 'menu' ? theme.pillActive : theme.pillInactive
+                    }`}
+                  >
+                    🏷 Стоп-лист и Цены
+                  </button>
+                </div>
+
+                {/* TAB 4A: ORDERS MANAGEMENT */}
+                {adminFilterTab !== 'menu' && (
+                  <div className="space-y-3">
+                    
+                    {/* Search Input */}
+                    <div className="relative">
+                      <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${theme.textMuted}`} />
+                      <input
+                        type="text"
+                        value={adminOrderSearch}
+                        onChange={(e) => setAdminOrderSearch(e.target.value)}
+                        placeholder="Поиск по номеру заказа, клиенту, телефону, адресу..."
+                        className={`w-full pl-9 pr-3.5 py-2 rounded-xl border text-xs font-mono transition-colors focus:outline-none focus:border-[#16ff60] ${
+                          isDarkTheme 
+                            ? 'bg-[#14151a] border-[#22242c] text-[#f4f5f8] placeholder-[#555a68]' 
+                            : 'bg-[#ffffff] border-[#e5e7eb] text-[#0c0d10] placeholder-[#9ca3af]'
+                        }`}
+                      />
+                      {adminOrderSearch && (
+                        <button
+                          onClick={() => setAdminOrderSearch('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#8b8f9e] hover:text-white"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Orders List */}
+                    {filteredAdminOrders.length === 0 ? (
+                      <div className={`p-8 rounded-2xl border text-center ${theme.cardBg} ${theme.cardBorder}`}>
+                        <Package className={`w-8 h-8 mx-auto mb-2 opacity-30 ${theme.textMuted}`} />
+                        <div className={`text-xs font-bold ${theme.textPrimary}`}>
+                          Заказов не найдено
+                        </div>
+                        <div className={`text-[11px] mt-1 ${theme.textMuted}`}>
+                          {adminOrderSearch ? 'Попробуйте изменить поисковый запрос' : 'В этой вкладке пока нет заказов'}
+                        </div>
+                      </div>
+                    ) : (
+                      filteredAdminOrders.map((order) => {
+                        const isDelivered = order.status === 'completed';
+                        const isCancelled = order.status === 'cancelled';
+                        const isCooking = order.status === 'cooking';
+                        const isDelivering = order.status === 'delivering';
+                        const isNew = order.status === 'new';
+
+                        // Calculated delivery duration
+                        let deliveryDurationStr = '';
+                        if (isDelivered && order.completedAt && order.createdAt) {
+                          const start = new Date(order.createdAt).getTime();
+                          const end = new Date(order.completedAt).getTime();
+                          if (!isNaN(start) && !isNaN(end) && end > start) {
+                            const diffMins = Math.max(1, Math.round((end - start) / 60000));
+                            deliveryDurationStr = `Доставлен за ${diffMins} мин`;
+                          }
+                        }
+
+                        return (
+                          <div 
+                            key={order.orderNumber || order.id}
+                            className={`p-4 rounded-2xl border transition-all ${theme.cardBg} ${theme.cardBorder} space-y-3 hover:border-[#16ff60]/40`}
+                          >
+                            {/* Card Header: Order # + Status + Time */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-sm font-black text-[#16ff60]">
+                                  #{order.orderNumber}
+                                </span>
+                                {order.createdAt && (
+                                  <span className={`text-[10px] font-mono ${theme.textMuted}`}>
+                                    {new Date(order.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Status Badge */}
+                              <div className="flex items-center gap-1.5">
+                                {isNew && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                    🟡 Новый
+                                  </span>
+                                )}
+                                {isCooking && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                                    👨‍🍳 На кухне {order.estimatedTime ? `(${order.estimatedTime})` : ''}
+                                  </span>
+                                )}
+                                {isDelivering && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                                    🚴 Курьер в пути {order.estimatedTime ? `(${order.estimatedTime})` : ''}
+                                  </span>
+                                )}
+                                {isDelivered && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#16ff60]/15 text-[#16ff60] border border-[#16ff60]/30">
+                                    ✅ Выполнен
+                                  </span>
+                                )}
+                                {isCancelled && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-500/15 text-red-400 border border-red-500/30">
+                                    ❌ Отменен
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Client Bento Card */}
+                            <div className={`p-2.5 rounded-xl border text-xs space-y-1.5 ${theme.subtleBg} ${theme.cardBorder}`}>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`font-bold ${theme.textPrimary}`}>
+                                  {order.customerName || 'Клиент'}
+                                </span>
+                                {order.username && (
+                                  <a
+                                    href={`https://t.me/${order.username.replace('@', '')}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[#16ff60] font-mono text-[11px] flex items-center gap-1 hover:underline"
+                                  >
+                                    <span>@{order.username.replace('@', '')}</span>
+                                    <ExternalLink className="w-2.5 h-2.5" />
+                                  </a>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+                                {order.phone && (
+                                  <a 
+                                    href={`tel:${order.phone}`} 
+                                    className="font-mono text-[#8b8f9e] hover:text-[#16ff60] flex items-center gap-1"
+                                  >
+                                    <Phone className="w-3 h-3 text-[#16ff60]" />
+                                    <span>{order.phone}</span>
+                                  </a>
+                                )}
+                                {order.address && (
+                                  <div className="flex items-center gap-1 text-[#8b8f9e]">
+                                    <MapPin className="w-3 h-3 text-[#16ff60]" />
+                                    <span>{order.address}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {order.comment && (
+                                <div className={`text-[10px] italic border-t pt-1 ${theme.cardBorder} ${theme.textMuted}`}>
+                                  «{order.comment}»
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Order Items Breakdown */}
+                            <div className="space-y-1 text-xs">
+                              {order.items && order.items.map((item, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-[11px]">
+                                  <span className={theme.textPrimary}>
+                                    {item.name} <span className="font-mono font-bold text-[#16ff60]">× {item.quantity}</span>
+                                  </span>
+                                  <span className="font-mono text-[#8b8f9e]">
+                                    {((item.price || 0) * (item.quantity || 1)).toLocaleString('ru-RU')} ₽
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Total and Performance Duration Badge */}
+                            <div className={`flex items-center justify-between border-t pt-2 ${theme.cardBorder}`}>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs font-mono uppercase tracking-wider ${theme.textMuted}`}>
+                                  Сумма заказа:
+                                </span>
+                                <span className="font-mono text-sm font-black text-[#16ff60]">
+                                  {(order.totalPrice || 0).toLocaleString('ru-RU')} ₽
+                                </span>
+                              </div>
+
+                              {deliveryDurationStr && (
+                                <div className="text-[10px] font-mono font-bold text-[#16ff60] px-2 py-0.5 rounded-full bg-[#16ff60]/10 border border-[#16ff60]/30">
+                                  ⚡ {deliveryDurationStr}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Action Buttons for Dispatcher */}
+                            {(() => {
+                              const currentOrderNum = order.orderNumber || String(order.id || '');
+                              return (
+                                <div className="space-y-2 pt-1 border-t border-dashed border-[#22242c]">
+                                  
+                                  {/* Kitchen ETA actions (for new orders) */}
+                                  {isNew && (
+                                    <div>
+                                      <div className={`text-[10px] font-mono uppercase tracking-wider mb-1 ${theme.textMuted}`}>
+                                        👨‍🍳 Начать готовку (Шеф):
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-1.5">
+                                        <button
+                                          onClick={() => handleAdminUpdateStatus(currentOrderNum, 'cooking', 15)}
+                                          className="py-1.5 rounded-lg text-[11px] font-mono font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25 active:scale-95 transition-all cursor-pointer"
+                                        >
+                                          15 мин
+                                        </button>
+                                        <button
+                                          onClick={() => handleAdminUpdateStatus(currentOrderNum, 'cooking', 25)}
+                                          className="py-1.5 rounded-lg text-[11px] font-mono font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25 active:scale-95 transition-all cursor-pointer"
+                                        >
+                                          25 мин
+                                        </button>
+                                        <button
+                                          onClick={() => handleAdminUpdateStatus(currentOrderNum, 'cooking', 35)}
+                                          className="py-1.5 rounded-lg text-[11px] font-mono font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25 active:scale-95 transition-all cursor-pointer"
+                                        >
+                                          35 мин
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Courier ETA actions (Starts live countdown on customer Mini App!) */}
+                                  {(isNew || isCooking) && (
+                                    <div>
+                                      <div className={`text-[10px] font-mono uppercase tracking-wider mb-1 ${theme.textMuted}`}>
+                                        🚴 Отправить курьера (клиент получит таймер):
+                                      </div>
+                                      <div className="grid grid-cols-4 gap-1.5">
+                                        <button
+                                          onClick={() => handleAdminUpdateStatus(currentOrderNum, 'delivering', 15)}
+                                          className="py-1.5 rounded-lg text-[11px] font-mono font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30 hover:bg-purple-500/25 active:scale-95 transition-all cursor-pointer"
+                                        >
+                                          15м
+                                        </button>
+                                        <button
+                                          onClick={() => handleAdminUpdateStatus(currentOrderNum, 'delivering', 25)}
+                                          className="py-1.5 rounded-lg text-[11px] font-mono font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30 hover:bg-purple-500/25 active:scale-95 transition-all cursor-pointer"
+                                        >
+                                          25м
+                                        </button>
+                                        <button
+                                          onClick={() => handleAdminUpdateStatus(currentOrderNum, 'delivering', 35)}
+                                          className="py-1.5 rounded-lg text-[11px] font-mono font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30 hover:bg-purple-500/25 active:scale-95 transition-all cursor-pointer"
+                                        >
+                                          35м
+                                        </button>
+                                        <button
+                                          onClick={() => handleAdminUpdateStatus(currentOrderNum, 'delivering', 45)}
+                                          className="py-1.5 rounded-lg text-[11px] font-mono font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30 hover:bg-purple-500/25 active:scale-95 transition-all cursor-pointer"
+                                        >
+                                          45м
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Complete & Cancel & Delete Actions */}
+                                  <div className="flex items-center gap-1.5 pt-1">
+                                    {!isDelivered && (
+                                      <button
+                                        onClick={() => handleAdminUpdateStatus(currentOrderNum, 'completed')}
+                                        className="flex-1 py-2 rounded-xl text-xs font-black bg-[#16ff60] text-[#0c0d10] hover:brightness-105 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_2px_10px_rgba(22,255,96,0.3)]"
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                        <span>Заказ доставлен</span>
+                                      </button>
+                                    )}
+
+                                    {!isDelivered && !isCancelled && (
+                                      <button
+                                        onClick={() => handleAdminUpdateStatus(currentOrderNum, 'cancelled')}
+                                        className="px-3 py-2 rounded-xl text-xs font-semibold text-red-400 border border-red-500/30 hover:bg-red-500/10 active:scale-95 transition-all cursor-pointer"
+                                      >
+                                        Отменить
+                                      </button>
+                                    )}
+
+                                    <button
+                                      onClick={() => handleAdminDelete(currentOrderNum)}
+                                      title="Удалить заказ навсегда"
+                                      className="p-2 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/15 active:scale-95 transition-all cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+
+                                </div>
+                              );
+                            })()}
+
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* TAB 4B: MENU & STOP-LIST MANAGEMENT */}
+                {adminFilterTab === 'menu' && (
+                  <div className="space-y-3">
+                    <div className={`p-3 rounded-2xl border ${theme.cardBg} ${theme.cardBorder} text-xs`}>
+                      <div className="font-bold text-[#16ff60] mb-0.5">
+                        Управление меню и стоп-листом
+                      </div>
+                      <div className={theme.textMuted}>
+                        Отключайте блюда, которые закончились на кухне, или быстро меняйте цены прямо в приложении.
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {products.map((p) => {
+                        const isAvailable = p.isAvailable !== false;
+                        const isEditingPrice = editingPriceProductId === p.id;
+
+                        return (
+                          <div
+                            key={p.id}
+                            className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                              theme.cardBg
+                            } ${!isAvailable ? 'opacity-60 border-red-500/30' : theme.cardBorder}`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <img
+                                src={p.image}
+                                alt={p.name}
+                                className="w-12 h-12 rounded-xl object-cover flex-shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className={`text-xs font-bold truncate ${theme.textPrimary}`}>
+                                  {p.name}
+                                </div>
+                                <div className={`text-[10px] font-mono ${theme.textMuted}`}>
+                                  {p.weight} • {p.calories} ккал • {p.category}
+                                </div>
+
+                                {/* Price display or Price editor */}
+                                <div className="mt-1 flex items-center gap-1.5">
+                                  {isEditingPrice ? (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        value={editingPriceValue}
+                                        onChange={(e) => setEditingPriceValue(e.target.value)}
+                                        className="w-16 px-1.5 py-0.5 rounded border text-xs font-mono bg-[#1a1b22] border-[#16ff60] text-white focus:outline-none"
+                                        autoFocus
+                                      />
+                                      <button
+                                        onClick={() => {
+                                          const val = parseInt(editingPriceValue, 10);
+                                          if (!isNaN(val) && val > 0) {
+                                            handleAdminChangePrice(p.id, val);
+                                          }
+                                        }}
+                                        className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#16ff60] text-[#0c0d10]"
+                                      >
+                                        OK
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingPriceProductId(null)}
+                                        className="px-1 py-0.5 text-[10px] text-[#8b8f9e]"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setEditingPriceProductId(p.id);
+                                        setEditingPriceValue(String(p.price));
+                                      }}
+                                      title="Нажмите, чтобы изменить цену"
+                                      className="font-mono text-xs font-bold text-[#16ff60] hover:underline cursor-pointer"
+                                    >
+                                      {p.price} ₽ ✏️
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Toggle availability button */}
+                            <button
+                              onClick={() => handleAdminToggleAvailability(p.id)}
+                              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer whitespace-nowrap active:scale-95 ${
+                                isAvailable
+                                  ? 'bg-[#16ff60]/15 text-[#16ff60] border-[#16ff60]/30 hover:bg-red-500/15 hover:text-red-400 hover:border-red-500/30'
+                                  : 'bg-red-500/15 text-red-400 border-red-500/30 hover:bg-[#16ff60]/15 hover:text-[#16ff60] hover:border-[#16ff60]/30'
+                              }`}
+                            >
+                              {isAvailable ? '🟢 В наличии' : '🔴 Стоп-лист'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )}
+
           </div>
         )}
       </main>
@@ -1802,6 +2702,27 @@ export function App() {
             <HelpCircle className="w-3.5 h-3.5" />
             <span>Инфо</span>
           </button>
+
+          {/* Admin panel tab button */}
+          {(isAdminLoggedIn || window.location.search.includes('admin')) && (
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                setActiveTab('admin');
+              }}
+              className={`relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'admin' 
+                  ? (isDarkTheme ? 'bg-[#16ff60] text-[#0c0d10] shadow-[0_0_12px_rgba(22,255,96,0.3)]' : 'bg-[#0c0d10] text-[#ffffff]') 
+                  : theme.textMuted
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Админ</span>
+              {adminAnalytics.newCount > 0 && (
+                <span className="w-2 h-2 rounded-full bg-[#16ff60] animate-pulse" />
+              )}
+            </button>
+          )}
 
           <button
             onClick={() => {

@@ -75,6 +75,26 @@ async def handle_support(message: types.Message):
     )
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
+@dp.message(Command("admin"))
+async def handle_client_admin(message: types.Message):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="⚡ Открыть панель управления (Mini App)", 
+                    web_app=WebAppInfo(url=f"{WEBAPP_URL}?admin=1")
+                )
+            ]
+        ]
+    )
+    await message.answer(
+        "👑 <b>Панель управления Vibe Kitchen</b>\n\n"
+        "Нажмите кнопку ниже, чтобы открыть диспетчерскую в Mini App в стиле MPSTATS.\n"
+        "При первом входе введите логин и пароль.",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
 # --- ORDER PROCESSING & CLIENT CONFIRMATION ---
 
 PROCESSED_ORDERS: dict[str, float] = {}

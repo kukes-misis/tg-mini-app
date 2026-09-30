@@ -43,6 +43,8 @@ export interface OrderData {
   cutlery?: number;
   tips?: number;
   customerName: string;
+  username?: string;
+  user_name?: string;
   phone: string;
   email: string;
   address: string;
